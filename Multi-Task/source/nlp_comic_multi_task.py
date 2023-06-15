@@ -680,17 +680,17 @@ def training_loop():
         model = train(model, optimizer)
 
         val_pred, val_loss1, val_f1 = evaluate(model, validation_set)
-        test_pred, test_loss1, test_f1 = evaluate(model, test_set)
+        #test_pred, test_loss1, test_f1 = evaluate(model, test_set)
 
-        if max_test_f1 < test_f1:
-            max_test_f1 = test_f1
+        if max_test_f1 < val_f1:
+            max_test_f1 = val_f1
 
         current_lr = 0
         for pg in optimizer.param_groups:
             current_lr = pg['lr']
 
         print('Validation Loss %.5f, Validation F1 %.5f' % (val_loss1, val_f1))
-        print('Test Loss %.5f, Test F1 %.5f, Max Test F1 %.5f' % (test_loss1, test_f1, max_test_f1))
+        #print('Test Loss %.5f, Test F1 %.5f, Max Test F1 %.5f' % (test_loss1, test_f1, max_test_f1))
 
         print('Learning Rate', current_lr)
 
@@ -702,7 +702,7 @@ def training_loop():
 
 
         f.write('Validation Loss %.5f, Validation F1 %.5f\n' % (val_loss1, val_f1))
-        f.write('Test Loss %.5f, Test F1 %.5f\n' % (test_loss1, test_f1))
+        #f.write('Test Loss %.5f, Test F1 %.5f\n' % (test_loss1, test_f1))
         f.write('Learning Rate: %f\n' % (current_lr))
         f.close()
         
