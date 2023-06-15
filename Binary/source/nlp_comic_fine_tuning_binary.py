@@ -550,14 +550,14 @@ def training_loop():
         model = train(model, optimizer)
 
         val_pred, val_loss1, val_f1 = evaluate(model, validation_set)
-        test_pred, test_loss1, test_f1 = evaluate(model, test_set)
+        #test_pred, test_loss1, test_f1 = evaluate(model, test_set)
 
         current_lr = 0
         for pg in optimizer.param_groups:
             current_lr = pg['lr']
 
         print('Validation Loss %.5f, Validation F1 %.5f' % (val_loss1, val_f1))
-        print('Test Loss %.5f, Test F1 %.5f' % (test_loss1, test_f1))
+        #print('Test Loss %.5f, Test F1 %.5f' % (test_loss1, test_f1))
         print('Learning Rate', current_lr)
 
         if lr_schedule_active:
