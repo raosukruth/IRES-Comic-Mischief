@@ -1,3 +1,4 @@
+Repository for the work labeling comic mischief prediction will be updated soon.(LREC-COLING 2024)
 # Comic-Mischief-Prediction
 This project is related to the paper Labeling Comic Mischief Content in Online Videos with a Multimodal Hierarchical-Cross-Attention Model. The HICCAP.png shows the overall structure of the proposed HIerarchical Cross Attention with CAPtion (HICCAP) model. Totally,  we have 3 directories 1) Binary, 2) Multi-Task, and 3) Features. We will discuss the content of directories in the next sections.
 
