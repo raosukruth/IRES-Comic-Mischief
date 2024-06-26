@@ -1,4 +1,5 @@
 #!/usr/bin/bash
 
 export PYTHONPATH=./TaskHead:./Binary/source:./Binary
-python -m TaskHead.taskheads taskheads.py
+echo "Arguments are" $@
+python -m TaskHead.taskheads taskheads.py $@

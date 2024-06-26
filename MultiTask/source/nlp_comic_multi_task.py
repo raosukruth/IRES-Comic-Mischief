@@ -21,7 +21,7 @@ import pandas as pd
 from random import shuffle
 from torch import optim
 from torch.nn import functional as F
-from models.multi_task_model import *
+from MultiTask.source.models.multi_task_model import *
 import config as C
 from sklearn.metrics import f1_score
 import warnings
@@ -32,7 +32,7 @@ warnings.filterwarnings('ignore')
 from sklearn.metrics import accuracy_score
 from torch.utils.data import TensorDataset, DataLoader
 
-torch_helper = TorchHelper()
+#torch_helper = TorchHelper()
 
 
 loss_weights1 = torch.Tensor([1,3])
