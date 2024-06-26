@@ -5,8 +5,7 @@ sys.path.append('../../')
 import torch
 from torch import nn
 from torch.nn import functional as F
-from source.models.attention_ORG import *
-from source import config as C
+from source.models.attention import *
 import pprint
 import numpy as np
 from transformers import BertTokenizer, BertModel
