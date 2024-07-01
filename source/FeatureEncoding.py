@@ -21,18 +21,22 @@ class FeatureEncoding(nn.Module):
 
     def forward(self, mask, image, image_mask, audio, audio_mask):
         rnn_img_encoded, (hid, ct) = self.rnn_img(image)
-        self.rnn_img_encoded = self.rnn_img_drop_norm(rnn_img_encoded)
+        rnn_img_encoded = self.rnn_img_drop_norm(rnn_img_encoded)
         rnn_audio_encoded, (hid_audio, ct_audio) = self.rnn_audio(audio)
-        self.rnn_audio_encoded = self.rnn_audio_drop_norm(rnn_audio_encoded)
+        rnn_audio_encoded = self.rnn_audio_drop_norm(rnn_audio_encoded)
         
         extended_attention_mask = mask.float().unsqueeze(1).unsqueeze(2)
         extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype)
-        self.extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
+        extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
         
         extended_audio_attention_mask = audio_mask.float().unsqueeze(1).unsqueeze(2)
         extended_audio_attention_mask = extended_audio_attention_mask.to(dtype=next(self.parameters()).dtype) # fp16 compatibility
-        self.extended_audio_attention_mask = (1.0 - extended_audio_attention_mask) * -10000.0
+        extended_audio_attention_mask = (1.0 - extended_audio_attention_mask) * -10000.0
       
         extended_image_attention_mask = image_mask.float().unsqueeze(1).unsqueeze(2)
         extended_image_attention_mask = extended_image_attention_mask.to(dtype=next(self.parameters()).dtype) # fp16 compatibility
-        self.extended_image_attention_mask = (1.0 - extended_image_attention_mask) * -10000.0
+        extended_image_attention_mask = (1.0 - extended_image_attention_mask) * -10000.0
+
+        return rnn_img_encoded, extended_image_attention_mask,\
+            rnn_audio_encoded, extended_audio_attention_mask,\
+                extended_attention_mask

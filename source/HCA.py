@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import math
 from transformers import BertTokenizer, BertModel
+import numpy as np
 
 
 class Attention(nn.Module):
@@ -163,18 +164,35 @@ class HCA(nn.Module):
         output_text = self.att1(output_text, self.sequential_audio(rnn_audio_encoded), extended_audio_attention_mask)
         output_text = self.att1_drop_norm2(output_text)
         
-        self.output_text = output_text + hidden[-1]
+        output_text = output_text + hidden[-1]
 
         output_audio = self.att2(self.sequential_audio(rnn_audio_encoded), self.sequential_image(rnn_img_encoded) ,extended_image_attention_mask)
         output_audio = self.att2_drop_norm1(output_audio)
         output_audio = self.att2(output_audio, hidden[-1], extended_attention_mask)   
         output_audio = self.att2_drop_norm2(output_audio)
         
-        self.output_audio = output_audio + self.sequential_audio(rnn_audio_encoded)
+        output_audio = output_audio + self.sequential_audio(rnn_audio_encoded)
 
         output_image = self.att3(self.sequential_image(rnn_img_encoded), hidden[-1], extended_attention_mask)
         output_image = self.att3_drop_norm1(output_image)
         output_image = self.att3(output_image, self.sequential_audio(rnn_audio_encoded) ,extended_audio_attention_mask)
         output_image = self.att3_drop_norm2(output_image)
         
-        self.output_image = output_image + self.sequential_image(rnn_img_encoded)
+        output_image = output_image + self.sequential_image(rnn_img_encoded)
+
+        mask = torch.tensor(np.array([1]*output_text.size()[1])).to(next(self.parameters()).device) # cuda()
+        audio_mask = torch.tensor(np.array([1]*output_audio.size()[1])).to(next(self.parameters()).device) # cuda()
+        image_mask = torch.tensor(np.array([1]*output_image.size()[1])).to(next(self.parameters()).device) # cuda()
+
+        #print("TEXT BEFORE SELF ATTENTION:", output_text.shape)
+        output_text, attention_weights = self.attention(output_text, mask.float())
+        output_text = self.attention_drop_norm(output_text)
+        #print("TEXT AFTER SELF ATTENTION:", output_text.shape)
+        output_audio, attention_weights = self.attention_audio(output_audio, audio_mask.float())
+        output_audio = self.attention_audio_drop_norm(output_audio)
+        #print("IMAGE BEFORE SELF ATTENTION", output_image.shape)
+        output_image, attention_weights = self.attention_image(output_image, image_mask.float())
+        output_image = self.attention_image_drop_norm(output_image)
+        #print("IMAGE AFTER SELF ATTENTION", output_image.shape)
+
+        return output_text, output_audio, output_image
