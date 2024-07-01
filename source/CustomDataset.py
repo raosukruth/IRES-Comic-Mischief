@@ -8,9 +8,6 @@ import config as C
 
 class CustomDataset(Dataset):
     def __init__(self, json_data, text_pad_length=500, img_pad_length=36, audio_pad_length=63):
-        # self.base_dir = os.path.dirname(os.path.abspath(__file__)) 
-        # processed_data_dir = os.path.join(self.base_dir, "processed_data")
-
         processed_data_dir = C.processed_data_dir
         full_json_data_path = os.path.join(processed_data_dir, json_data)
         # the above may be better to be modified
@@ -35,8 +32,6 @@ class CustomDataset(Dataset):
         
         # FIX THIS
         # NOTE THAT ORIGINAL CODE DOES ERROR HANDLING HERE
-        # image_path = os.path.join(self.base_dir, "path_to_I3D_features/")
-
         image_path = C.path_to_I3D_features
 
         # ERROR HANDLING BELOW NEEDS UNIFYING
@@ -56,8 +51,6 @@ class CustomDataset(Dataset):
             masked_img = torch.zeros(self.img_pad_length)
 
         # Load audio features
-        # audio_path = os.path.join(self.base_dir, "path_to_VGGish_features/")
-
         audio_path = C.path_to_VGGish_features
         try:
             audio_vec = np.load(audio_path)
