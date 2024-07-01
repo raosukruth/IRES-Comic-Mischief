@@ -84,16 +84,3 @@ class CustomDataset(Dataset):
             "sarcasm": sarcasm.float(),
             "slapstick": slapstick.float()
         }
-
-
-if __name__ == "__main__":
-    dataset = CustomDataset("test_features_lrec_camera.json")
-    idx = 0
-    for item in dataset:
-        if idx == 1:
-            break
-        for key, value in item.items():
-            print(key)
-            print(value)
-            print()
-        idx += 1
