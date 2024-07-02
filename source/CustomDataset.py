@@ -75,6 +75,9 @@ class CustomDataset(Dataset):
         sarcasm = torch.tensor(item["sarcasm"])
         slapstick = torch.tensor(item["slapstick"])
 
+        image_vec.requires_grad_()
+        audio_vec.requires_grad_()
+
         return {
             'text': text,
             'text_mask': mask,

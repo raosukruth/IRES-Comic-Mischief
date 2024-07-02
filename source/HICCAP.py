@@ -9,7 +9,7 @@ class HICCAP(nn.Module):
     def __init__(self, head="binary", encoding=None, hca=None):
         super(HICCAP, self).__init__()
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+        device = "cpu"
         if encoding == None:
             encoding = FeatureEncoding()
         if hca == None:
@@ -26,7 +26,7 @@ class HICCAP(nn.Module):
             self.task_head = ComicMischiefMulti()
         else:
             ### Use the class that implements VTM, VAM, ATM ###
-            self.task_head = None
+            self.task_head = ComicMischiefBinary()
 
         self.task_head.to(device)
 

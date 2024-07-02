@@ -17,26 +17,22 @@ def run(pretrain):
     print (len(train_set))
     print('Train Loaded')
 
-    validation_set = features_dict_val
-    print (len(validation_set))
-    print('Validation Loaded')
-
-    test_set = features_dict_test
-    print (len(test_set))
-    print('test Loaded')
 
     if pretrain:
         ### Do Pretraining here ###
-        pass
+        model_pretrain = ComicMischiefDetection(head="pretrain", encoding=feature_encoding, hca=hca)
+        model_pretrain.training_loop(0, 1, "train_features_lrec_camera.json", "val_features_lrec_camera.json")
+
+    
     
     model_binary = ComicMischiefDetection(head="binary", encoding=feature_encoding, hca=hca)
-    model_binary.training_loop(0, 1, train_set, validation_set="train_features_lrec_camera.json")
+    model_binary.training_loop(0, 1, "train_features_lrec_camera.json", "val_features_lrec_camera.json")
 
     model_multi = ComicMischiefDetection(head="multi", encoding=feature_encoding, hca=hca)
-    # model_multi.training_loop(0, 1, train_set, validation_set="train_features_lrec_camera.json")
+    model_multi.training_loop(0, 1, "train_features_lrec_camera.json","val_features_lrec_camera.json")
     
     model_binary.test()
-    # model_multi.test()
+    model_multi.test()
 
 if __name__ == "__main__":
     args = sys.argv
