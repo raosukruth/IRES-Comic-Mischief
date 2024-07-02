@@ -23,8 +23,8 @@ class ComicMischiefDetection:
     def __init__(self, head="binary", encoding=None, hca=None):
         self.model = HICCAP(head, encoding, hca)
         self.head = head
-        if self.head not in ['binary', 'multi']:
-            raise ValueError("Mode should be either 'binary' or 'multi'")     
+        if self.head not in ['binary', 'multi', 'pretrain']:
+            raise ValueError("Mode should be either 'binary' or 'multi' or 'pretrain")     
 
     def set_training_mode(self):
         self.model.set_training_mode()
@@ -34,7 +34,7 @@ class ComicMischiefDetection:
 
     def training_loop(self, start_epoch, max_epochs, 
                       train_set, validation_set, 
-                      optimizer_type="adam"):
+                      optimizer_type="adam", pretrain=False):
         learning_rate = 1.9e-5
         weight_decay_val = 0
         lr_schedule_active = False
@@ -54,7 +54,7 @@ class ComicMischiefDetection:
                                                    factor=0.5)
 
         for _ in range(start_epoch, max_epochs):
-            self.train(train_set, optimizer)
+            self.train(train_set, optimizer, pretrain=pretrain)
             avg_loss, accuracy, f1 = self.evaluate(validation_set)
             print("Validation {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
                 self.head, avg_loss, accuracy, f1))
@@ -64,7 +64,7 @@ class ComicMischiefDetection:
     def train(self, json_data, optimizer, batch_size=24,
               text_pad_length=500, img_pad_length=36, 
               audio_pad_length=63, shuffle=True, 
-              device=None):
+              device=None, pretrain=False):
         if device == None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         device = "cpu" # hack to overcome cuda running out of memory
@@ -109,7 +109,7 @@ class ComicMischiefDetection:
                     loss = Utils.compute_l2_reg_val(self.model) + \
                         F.binary_cross_entropy(y_pred, torch.Tensor(batch_binary))
                     total_loss += loss.item()
-                else:
+                elif self.head == "multi":
                     mature, gory, slapstick, sarcasm = self.model(batch_text, 
                                                 batch_text_mask, 
                                                 batch_image, 
@@ -127,11 +127,24 @@ class ComicMischiefDetection:
                     loss4 = F.binary_cross_entropy(sarcasm_pred, torch.Tensor(batch_sarcasm))
                     total_loss += loss1.item() + loss2.item() + loss3.item() + loss4.item()
                     loss = mature_w * loss1 + gory_w * loss2 + slap_w * loss3 + sarcasm_w * loss4
+                elif self.head == "pretrain":
+                    ### hack for pretraining ###
+                    out = self.model(batch_text, 
+                                    batch_text_mask, 
+                                    batch_image, 
+                                    batch_mask_img, 
+                                    batch_audio, 
+                                    batch_mask_audio)
+                    y_pred = out.cpu()
+                    loss = Utils.compute_l2_reg_val(self.model) + \
+                        F.binary_cross_entropy(y_pred, torch.Tensor(batch_binary))
+                    total_loss += loss.item()
 
                 loss.requires_grad_()
                 loss.backward()
                 optimizer.step()
                 batch_idx += 1
+                break
 
     def evaluate(self, json_data, batch_size=24, 
                  text_pad_length=500, img_pad_length=36, 
@@ -183,8 +196,16 @@ class ComicMischiefDetection:
                                                                   batch_mask_audio)
                     outputs = [mature, gory, slapstick, sarcasm]
                 else:
-                    ### CODE FOR PRETRAINING ###
-                    pass
+                    ### Hack FOR PRETRAINING ###
+                    pred = batch["binary"].to(device) # batch_size by 2
+                    batch_pred = [pred]
+                    out = self.model(batch_text, 
+                                     batch_text_mask, 
+                                     batch_image, 
+                                     batch_mask_img, 
+                                     batch_audio, 
+                                     batch_mask_audio)
+                    outputs = [out]
 
                 for out, pred in zip(outputs, batch_pred):
                     loss = F.binary_cross_entropy(out, pred)
@@ -196,6 +217,7 @@ class ComicMischiefDetection:
                 
                     all_preds.extend(preds)
                     all_labels.extend(true_labels)
+                break
 
         # Calculate accuracy and F1 score
         accuracy = accuracy_score(all_labels, all_preds)
