@@ -28,6 +28,9 @@ def mask_vector(max_size, arr):
     return torch.tensor(output)
 
 def pad_segment(feature, max_feature_len, pad_idx):
+    if isinstance(feature, np.ndarray):
+        feature = torch.from_numpy(feature)
+
     S, D = feature.shape
     if S > max_feature_len:
         feature = feature[:max_feature_len]
@@ -37,14 +40,18 @@ def pad_segment(feature, max_feature_len, pad_idx):
         feature = torch.concatenate((feature, pad_segment), axis=0)
     return feature
 
+
+
 def pad_features(docs_ints, text_pad_length=500):
     features = torch.zeros((len(docs_ints), text_pad_length), dtype=int)
     for i, row in enumerate(docs_ints):
+        if isinstance(row, np.ndarray):
+            row = torch.from_numpy(row)
         features[i, -len(row):] = row[:text_pad_length]
     return features
 
 def masking(docs_ints, seq_length=500):
-    masks = np.zeros((len(docs_ints), seq_length), dtype=int)
+    masks = torch.zeros((len(docs_ints), seq_length), dtype=int)
     for i, row in enumerate(docs_ints):
         masks[i, -len(row):] = 1
     return masks

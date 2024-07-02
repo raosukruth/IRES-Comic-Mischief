@@ -30,16 +30,13 @@ def run(pretrain):
         pass
     
     model_binary = ComicMischiefDetection(head="binary", encoding=feature_encoding, hca=hca)
-    model_binary.training_loop(0, 1, "binary", train_set, validation_set="train_features_lrec_camera.json")
+    model_binary.training_loop(0, 1, train_set, validation_set="train_features_lrec_camera.json")
 
     model_multi = ComicMischiefDetection(head="multi", encoding=feature_encoding, hca=hca)
-    model_multi.training_loop(0, 1, "multi", train_set, validation_set="train_features_lrec_camera.json")
-
-    model_binary.evaluate("binary", "train_features_lrec_camera.json", "multi")
-
-
-    # model_binary.evaluate(model_binary, test_set, "val")
-    # model_multi.evaluate(model, test_set, "val")
+    # model_multi.training_loop(0, 1, train_set, validation_set="train_features_lrec_camera.json")
+    
+    model_binary.test()
+    # model_multi.test()
 
 if __name__ == "__main__":
     args = sys.argv

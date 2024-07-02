@@ -64,9 +64,9 @@ class HICCAP(nn.Module):
                                                            extended_audio_attention_mask, 
                                                            extended_attention_mask)
         
-        out, mid = self.task_head(output_text, output_audio, output_image)
+        out = self.task_head(output_text, output_audio, output_image)
 
-        return out, mid
+        return out
 
 
     

@@ -40,8 +40,12 @@ class CustomDataset(Dataset):
         image_path_rgb = os.path.join(image_path, f"{key}_rgb.npy")
         image_path_flow = os.path.join(image_path, f"{key}_flow.npy")
         if os.path.isfile(image_path_rgb) and os.path.isfile(image_path_flow):
-            a1 = torch.load(image_path_rgb)
-            a2 = torch.load(image_path_flow)
+            # a1 = torch.load(image_path_rgb)
+            # a2 = torch.load(image_path_flow)
+
+            a1 = np.load(image_path_rgb)
+            a2 = np.load(image_path_flow)
+
             image_vec = a1 + a2
             masked_img = mask_vector(self.img_pad_length, image_vec)
             image_vec = pad_segment(image_vec, self.img_pad_length, 0)
@@ -51,7 +55,7 @@ class CustomDataset(Dataset):
             masked_img = torch.zeros(self.img_pad_length)
 
         # Load audio features
-        audio_path = C.path_to_VGGish_features
+        audio_path = C.path_to_VGGish_features + key + "_vggish.npy"
         try:
             audio_vec = np.load(audio_path)
         except FileNotFoundError:
