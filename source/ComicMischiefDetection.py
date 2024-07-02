@@ -144,7 +144,6 @@ class ComicMischiefDetection:
                 loss.backward()
                 optimizer.step()
                 batch_idx += 1
-                break
 
     def evaluate(self, json_data, batch_size=24, 
                  text_pad_length=500, img_pad_length=36, 
@@ -217,7 +216,6 @@ class ComicMischiefDetection:
                 
                     all_preds.extend(preds)
                     all_labels.extend(true_labels)
-                break
 
         # Calculate accuracy and F1 score
         accuracy = accuracy_score(all_labels, all_preds)

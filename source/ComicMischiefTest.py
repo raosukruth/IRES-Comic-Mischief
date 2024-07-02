@@ -20,14 +20,14 @@ def run(pretrain):
     if pretrain:
         ### Do Pretraining here ###
         model_pretrain = ComicMischiefDetection(head="pretrain", encoding=feature_encoding, hca=hca)
-        model_pretrain.training_loop(0, 1, "train_features_lrec_camera.json", 
+        model_pretrain.training_loop(0, 4, "train_features_lrec_camera.json", 
                                      "val_features_lrec_camera.json", pretrain=True)
 
     model_binary = ComicMischiefDetection(head="binary", encoding=feature_encoding, hca=hca)
-    model_binary.training_loop(0, 1, "train_features_lrec_camera.json", "val_features_lrec_camera.json")
+    model_binary.training_loop(0, 4, "train_features_lrec_camera.json", "val_features_lrec_camera.json")
 
     model_multi = ComicMischiefDetection(head="multi", encoding=feature_encoding, hca=hca)
-    model_multi.training_loop(0, 1, "train_features_lrec_camera.json","val_features_lrec_camera.json")
+    model_multi.training_loop(0, 4, "train_features_lrec_camera.json","val_features_lrec_camera.json")
     
     model_binary.test()
     model_multi.test()
