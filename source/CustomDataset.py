@@ -1,3 +1,5 @@
+# Courtesy https://github.com/cullena20/IRESComicMischief/blob/main/finetuning_dataloader.py
+
 import os
 import numpy as np
 import torch
