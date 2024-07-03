@@ -64,9 +64,15 @@ class HICCAP(nn.Module):
                                                            extended_audio_attention_mask, 
                                                            extended_attention_mask)
         
-        out = self.task_head(output_text, output_audio, output_image)
-
-        return out
-
-
+        return output_text, output_audio, output_image
     
+    def forward_pass(self, sentences, mask, image, image_mask, audio, audio_mask,
+              reg_model, actual):
+        output_text, output_audio, output_image = self.forward(sentences, mask, image, 
+                                                             image_mask, audio, audio_mask)
+        return self.task_head.forward_pass(output_text, output_audio, output_image, reg_model, actual)
+    
+    def eval_pass(self, sentences, mask, image, image_mask, audio, audio_mask):
+        output_text, output_audio, output_image = self.forward(sentences, mask, image, 
+                                                             image_mask, audio, audio_mask)
+        return self.task_head.eval_pass(output_text, output_audio, output_image)

@@ -14,7 +14,6 @@ from HICCAP import HICCAP
 from torch.utils.data import DataLoader
 from CustomDataset import CustomDataset
 import Utils
-import torch.nn as nn
 
 def create_encoding_hca():
     return FeatureEncoding(), HCA()
@@ -68,15 +67,11 @@ class ComicMischiefDetection:
         if device == None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         device = "cpu" # hack to overcome cuda running out of memory
+        
         dataset = CustomDataset(json_data, text_pad_length, img_pad_length, audio_pad_length)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
-        self.set_eval_mode()
+        self.set_training_mode()
 
-        mature_w = 0.1
-        gory_w = 0.4
-        slap_w = 0.2
-        sarcasm_w = 0.2
-        
         total_loss = 0 
         with torch.no_grad():
             for batch_idx, batch in enumerate(dataloader):
@@ -94,54 +89,21 @@ class ComicMischiefDetection:
                 batch_slapstick = batch["slapstick"].to(device)
                 batch_sarcasm = batch["sarcasm"].to(device)
 
-                # batch_size by 2 for binary
-                # batch size by 4 by 2 for multi task
                 if self.head == "binary":
-                    out = self.model(batch_text, 
-                                    batch_text_mask, 
-                                    batch_image, 
-                                    batch_mask_img, 
-                                    batch_audio, 
-                                    batch_mask_audio)
-
-                    y_pred = out.cpu()
-                    
-                    loss = Utils.compute_l2_reg_val(self.model) + \
-                        F.binary_cross_entropy(y_pred, torch.Tensor(batch_binary))
-                    total_loss += loss.item()
+                    actual = batch_binary
                 elif self.head == "multi":
-                    mature, gory, slapstick, sarcasm = self.model(batch_text, 
-                                                batch_text_mask, 
-                                                batch_image, 
-                                                batch_mask_img, 
-                                                batch_audio, 
-                                                batch_mask_audio)
-                    
-                    mature_pred = mature.cpu()
-                    gory_pred = gory.cpu()
-                    slapstick_pred = slapstick.cpu()
-                    sarcasm_pred = sarcasm.cpu()
-                    loss1 = F.binary_cross_entropy(mature_pred, torch.Tensor(batch_mature)) 
-                    loss2 = F.binary_cross_entropy(gory_pred, torch.Tensor(batch_gory))
-                    loss3 = F.binary_cross_entropy(slapstick_pred, torch.Tensor(batch_slapstick))
-                    loss4 = F.binary_cross_entropy(sarcasm_pred, torch.Tensor(batch_sarcasm))
-                    total_loss += loss1.item() + loss2.item() + loss3.item() + loss4.item()
-                    loss = mature_w * loss1 + gory_w * loss2 + slap_w * loss3 + sarcasm_w * loss4
+                    actual = [batch_mature, batch_gory, batch_slapstick, batch_sarcasm]
                 elif self.head == "pretrain":
-                    ### hack for pretraining ###
-                    out = self.model(batch_text, 
-                                    batch_text_mask, 
-                                    batch_image, 
-                                    batch_mask_img, 
-                                    batch_audio, 
-                                    batch_mask_audio)
-                    y_pred = out.cpu()
-                    loss = Utils.compute_l2_reg_val(self.model) + \
-                        F.binary_cross_entropy(y_pred, torch.Tensor(batch_binary))
-                    total_loss += loss.item()
-
-                loss.requires_grad_()
-                loss.backward()
+                    actual = batch_binary
+                loss = self.model.forward_pass(batch_text, 
+                                        batch_text_mask, 
+                                        batch_image, 
+                                        batch_mask_img, 
+                                        batch_audio, 
+                                        batch_mask_audio,
+                                        self.model,
+                                        actual)
+                total_loss += loss
                 optimizer.step()
                 batch_idx += 1
 
@@ -173,38 +135,24 @@ class ComicMischiefDetection:
                 batch_gory = batch["gory"].to(device) # batch_size by 2
                 batch_slapstick = batch["slapstick"].to(device) # batch_size by 2
                 batch_sarcasm = batch["sarcasm"].to(device) # batch_size by 2
+                outputs = self.model.eval_pass(batch_text, 
+                                           batch_text_mask, 
+                                           batch_image, 
+                                           batch_mask_img, 
+                                           batch_audio, 
+                                           batch_mask_audio)
+                
                 if self.head == "binary":
                     pred = batch["binary"].to(device) # batch_size by 2
                     batch_pred = [pred]
-                    out = self.model(batch_text, 
-                                     batch_text_mask, 
-                                     batch_image, 
-                                     batch_mask_img, 
-                                     batch_audio, 
-                                     batch_mask_audio)
-                    outputs = [out]
+                    
                 elif self.head == "multi":
                     batch_pred = [batch_mature, batch_gory, batch_slapstick, batch_sarcasm]
-                    # batch_size by 2 for binary
-                    # batch size by 4 by 2 for multi task
-                    mature, gory, slapstick, sarcasm = self.model(batch_text,
-                                                                  batch_text_mask, 
-                                                                  batch_image, 
-                                                                  batch_mask_img, 
-                                                                  batch_audio, 
-                                                                  batch_mask_audio)
-                    outputs = [mature, gory, slapstick, sarcasm]
+
                 else:
                     ### Hack FOR PRETRAINING ###
                     pred = batch["binary"].to(device) # batch_size by 2
                     batch_pred = [pred]
-                    out = self.model(batch_text, 
-                                     batch_text_mask, 
-                                     batch_image, 
-                                     batch_mask_img, 
-                                     batch_audio, 
-                                     batch_mask_audio)
-                    outputs = [out]
 
                 for out, pred in zip(outputs, batch_pred):
                     loss = F.binary_cross_entropy(out, pred)
