@@ -120,6 +120,7 @@ class ComicMischiefDetection:
                     total_loss[head] += loss
                 optimizer.step()
                 batch_idx += 1
+                break
 
     def evaluate(self, json_data, batch_size=24, 
                  text_pad_length=500, img_pad_length=36, 
@@ -185,6 +186,7 @@ class ComicMischiefDetection:
                         if head not in all_labels:
                             all_labels[head] = []
                         all_labels[head].extend(true_labels)
+                break
         accuracy = {}
         f1 = {}
         avg_loss = {}

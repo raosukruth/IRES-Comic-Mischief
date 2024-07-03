@@ -125,8 +125,6 @@ class HCA(nn.Module):
             nn.LayerNorm(self.embedding_dim),
             nn.Dropout(0.3),
         )
-        self.bert = BertModel.from_pretrained('bert-base-uncased', output_hidden_states=True,
-                                                                output_attentions=True)
 
         self.rnn_audio = nn.LSTM(128, self.rnn_units, num_layers=2, bidirectional=True, batch_first = True)
         self.rnn_audio_drop_norm = nn.Sequential(
@@ -155,10 +153,8 @@ class HCA(nn.Module):
             nn.LayerNorm(self.embedding_dim, eps=1e-5),
         )
         
-    def forward(self, sentences, rnn_img_encoded, extended_image_attention_mask, 
+    def forward(self, hidden, rnn_img_encoded, extended_image_attention_mask, 
                 rnn_audio_encoded, extended_audio_attention_mask, extended_attention_mask):
-        hidden, _ = self.bert(sentences)[-2:]
-
         output_text = self.att1(hidden[-1], self.sequential_image(rnn_img_encoded), extended_image_attention_mask)
         output_text = self.att1_drop_norm1(output_text)
         output_text = self.att1(output_text, self.sequential_audio(rnn_audio_encoded), extended_audio_attention_mask)

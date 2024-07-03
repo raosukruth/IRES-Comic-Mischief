@@ -56,15 +56,16 @@ class HICCAP(nn.Module):
         return params
 
     def forward(self, sentences, mask, image, image_mask, audio, audio_mask):
-        rnn_img_encoded, extended_image_attention_mask,\
+        hidden, rnn_img_encoded, extended_image_attention_mask,\
             rnn_audio_encoded, extended_audio_attention_mask,\
-                extended_attention_mask = self.feature_encoding(mask, 
+                extended_attention_mask = self.feature_encoding(sentences, 
+                                                                mask, 
                                                                 image, 
                                                                 image_mask, 
                                                                 audio, 
                                                                 audio_mask)
         
-        output_text, output_audio, output_image = self.hca(sentences, 
+        output_text, output_audio, output_image = self.hca(hidden,
                                                            rnn_img_encoded,
                                                            extended_image_attention_mask, 
                                                            rnn_audio_encoded, 
