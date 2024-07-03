@@ -87,6 +87,16 @@ class HCA(nn.Module):
         self.embedding_dim = 768
         dropout = 0.2
 
+        self.sequential_audio = nn.Sequential(
+            nn.Linear(self.rnn_units*2  , self.embedding_dim),
+            nn.LayerNorm(self.embedding_dim),
+            nn.Dropout(0.3),
+        )
+        self.sequential_image = nn.Sequential(
+            nn.Linear(self.rnn_units*2  , self.embedding_dim),
+            nn.LayerNorm(self.embedding_dim),
+            nn.Dropout(0.3),
+        )
         self.att1 = BertOutAttention(self.embedding_dim)
         self.att1_drop_norm1 = nn.Sequential(
             nn.Dropout(dropout),
@@ -115,28 +125,11 @@ class HCA(nn.Module):
             nn.Dropout(dropout),
             nn.LayerNorm(self.embedding_dim, eps=1e-5),
         ) 
-        self.sequential_audio = nn.Sequential(
-            nn.Linear(self.rnn_units*2  , self.embedding_dim),
-            nn.LayerNorm(self.embedding_dim),
-            nn.Dropout(0.3),
-        )
-        self.sequential_image = nn.Sequential(
-            nn.Linear(self.rnn_units*2  , self.embedding_dim),
-            nn.LayerNorm(self.embedding_dim),
-            nn.Dropout(0.3),
-        )
-
-        self.rnn_audio = nn.LSTM(128, self.rnn_units, num_layers=2, bidirectional=True, batch_first = True)
-        self.rnn_audio_drop_norm = nn.Sequential(
+        self.attention = Attention(768)
+        self.attention_drop_norm = nn.Sequential(
             nn.Dropout(dropout),
-            nn.LayerNorm(self.rnn_units*2, eps=1e-5),
-        ) 
-        self.rnn_img = nn.LSTM(1024, self.rnn_units, num_layers=2, bidirectional=True, batch_first = True)
-        self.rnn_img_drop_norm = nn.Sequential(
-            nn.Dropout(dropout),
-            nn.LayerNorm(self.rnn_units*2, eps=1e-5),
-        ) 
-
+            nn.LayerNorm(self.embedding_dim, eps=1e-5),
+        )
         self.attention_audio = Attention(768)
         self.attention_audio_drop_norm = nn.Sequential(
             nn.Dropout(dropout),
@@ -147,11 +140,6 @@ class HCA(nn.Module):
             nn.Dropout(dropout),
             nn.LayerNorm(self.embedding_dim, eps=1e-5),
         ) 
-        self.attention = Attention(768)
-        self.attention_drop_norm = nn.Sequential(
-            nn.Dropout(dropout),
-            nn.LayerNorm(self.embedding_dim, eps=1e-5),
-        )
         
     def forward(self, hidden, rnn_img_encoded, extended_image_attention_mask, 
                 rnn_audio_encoded, extended_audio_attention_mask, extended_attention_mask):
