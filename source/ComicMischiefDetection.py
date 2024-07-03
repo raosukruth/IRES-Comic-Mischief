@@ -89,6 +89,23 @@ class ComicMischiefDetection:
                 batch_slapstick = batch["slapstick"].to(device)
                 batch_sarcasm = batch["sarcasm"].to(device)
 
+                # TODO: 
+                # When there are multiple heads send all the outputs in a 
+                # dict to forward_pass. For example:
+                # {
+                #   "task_binary": batch_binary,
+                #   "task_multi": [batch_mature, .....]
+                #   "task_pretrain": batch_binary
+                # }
+                # In HICCAP.forward_pass, call each task's forward_pass
+                # function by pulling the outputs from the above dict
+                # In fact it should also collect all the losses 
+                # and return in a dict. For example:
+                # {
+                #   "task_binary": binary_loss,
+                #   "task_multi": multi_loss,
+                #   "task_pretrain": pretrain_loss
+                # }
                 if self.head == "binary":
                     actual = batch_binary
                 elif self.head == "multi":
