@@ -1,36 +1,23 @@
 from ComicMischiefDetection import ComicMischiefDetection, create_encoding_hca
 import sys
-from HCA import HCA
-from FeatureEncoding import FeatureEncoding
-import json
-import config as C
 
 def run(pretrain):
     feature_encoding, hca = create_encoding_hca()
-    
-    features_dict_train = json.load(open(C.training_features))
-    features_dict_val = json.load(open(C.val_features))
-    features_dict_test = json.load(open(C.test_features))
-
-
-    train_set = features_dict_train
-    print (len(train_set))
-    print('Train Loaded')
-
     if pretrain:
         ### Do Pretraining here ###
-        model_pretrain = ComicMischiefDetection(head="pretrain", encoding=feature_encoding, hca=hca)
+        model_pretrain = ComicMischiefDetection(heads=["pretrain"], 
+                                                encoding=feature_encoding, 
+                                                hca=hca)
         model_pretrain.training_loop(0, 1, "train_features_lrec_camera.json", 
-                                     "val_features_lrec_camera.json", pretrain=True)
+                                     "val_features_lrec_camera.json", 
+                                     pretrain=True)
 
-    model_binary = ComicMischiefDetection(head="binary", encoding=feature_encoding, hca=hca)
-    model_binary.training_loop(0, 1, "train_features_lrec_camera.json", "val_features_lrec_camera.json")
-
-    model_multi = ComicMischiefDetection(head="multi", encoding=feature_encoding, hca=hca)
-    model_multi.training_loop(0, 1, "train_features_lrec_camera.json","val_features_lrec_camera.json")
-    
-    model_binary.test()
-    model_multi.test()
+    model_train = ComicMischiefDetection(heads=["binary", "multi"], 
+                                         encoding=feature_encoding, 
+                                         hca=hca)
+    model_train.training_loop(0, 1, "train_features_lrec_camera.json", 
+                              "val_features_lrec_camera.json")
+    model_train.test()
 
 if __name__ == "__main__":
     args = sys.argv

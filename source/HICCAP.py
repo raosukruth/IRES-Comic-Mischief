@@ -6,8 +6,13 @@ import torch
 
 
 class HICCAP(nn.Module):
-    def __init__(self, head="binary", encoding=None, hca=None):
+    def __init__(self, heads=None, encoding=None, hca=None):
         super(HICCAP, self).__init__()
+        if heads == None:
+            raise ValueError("Heads should be either 'binary' or 'multi' or 'pretrain")     
+        for head in heads:
+            if head not in ['binary', 'multi', 'pretrain']:
+                raise ValueError("Heads should be either 'binary' or 'multi' or 'pretrain")  
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         device = "cpu"
         if encoding == None:
@@ -19,33 +24,35 @@ class HICCAP(nn.Module):
 
         self.feature_encoding.to(device)
         self.hca.to(device)
-
-        if head == "binary":
-            self.task_head = ComicMischiefBinary()
-        elif head == "multi":
-            self.task_head = ComicMischiefMulti()
-        else:
-            ### Use the class that implements VTM, VAM, ATM ###
-            self.task_head = ComicMischiefBinary()
-
-        self.task_head.to(device)
-
+        self.task_heads = {}
+        for head in heads:
+            if head == "binary":
+                self.task_heads[head] = ComicMischiefBinary()
+            elif head == "multi":
+                self.task_heads[head] = ComicMischiefMulti()
+            else:
+                assert(head == "pretrain")
+                ### Use the class that implements VTM, VAM, ATM ###
+                self.task_heads[head] = ComicMischiefBinary()
+            self.task_heads[head].to(device)
 
     def set_training_mode(self):
         self.feature_encoding.train()
         self.hca.train()
-        self.task_head.train()
+        for head in self.task_heads:
+            self.task_heads[head].train()
 
     def set_eval_mode(self):
         self.feature_encoding.eval()
         self.hca.eval()
-        self.task_head.eval()
+        for head in self.task_heads:
+            self.task_heads[head].eval()
 
     def get_model_params(self):
         params = [{'params': self.feature_encoding.parameters()},
-                 {'params': self.hca.parameters()},
-                  {'params': self.task_head.parameters()}]
-        
+                 {'params': self.hca.parameters()}]
+        for head in self.task_heads:
+            params.append({'params': self.task_heads[head].parameters()})
         return params
 
     def forward(self, sentences, mask, image, image_mask, audio, audio_mask):
@@ -66,13 +73,27 @@ class HICCAP(nn.Module):
         
         return output_text, output_audio, output_image
     
-    def forward_pass(self, sentences, mask, image, image_mask, audio, audio_mask,
+    def forward_backward(self, sentences, mask, image, image_mask, audio, audio_mask,
               reg_model, actual):
         output_text, output_audio, output_image = self.forward(sentences, mask, image, 
                                                              image_mask, audio, audio_mask)
-        return self.task_head.forward_pass(output_text, output_audio, output_image, reg_model, actual)
+        outputs = {}
+        for head in self.task_heads:
+            output = self.task_heads[head].forward_backward(output_text, 
+                                                        output_audio, 
+                                                        output_image, 
+                                                        reg_model, 
+                                                        actual[head])
+            outputs[head] = output
+        return outputs
     
     def eval_pass(self, sentences, mask, image, image_mask, audio, audio_mask):
         output_text, output_audio, output_image = self.forward(sentences, mask, image, 
-                                                             image_mask, audio, audio_mask)
-        return self.task_head.eval_pass(output_text, output_audio, output_image)
+                                                               image_mask, 
+                                                               audio, 
+                                                               audio_mask)
+        outputs = {}
+        for head in self.task_heads:
+            output = self.task_heads[head].eval_pass(output_text, output_audio, output_image)
+            outputs[head] = output
+        return outputs

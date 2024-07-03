@@ -19,11 +19,14 @@ def create_encoding_hca():
     return FeatureEncoding(), HCA()
 
 class ComicMischiefDetection:
-    def __init__(self, head="binary", encoding=None, hca=None):
-        self.model = HICCAP(head, encoding, hca)
-        self.head = head
-        if self.head not in ['binary', 'multi', 'pretrain']:
-            raise ValueError("Mode should be either 'binary' or 'multi' or 'pretrain")     
+    def __init__(self, heads=None, encoding=None, hca=None):
+        if heads == None:
+            raise ValueError("Heads should be either 'binary' or 'multi' or 'pretrain")     
+        for head in heads:
+            if head not in ['binary', 'multi', 'pretrain']:
+                raise ValueError("Heads should be either 'binary' or 'multi' or 'pretrain")     
+        self.model = HICCAP(heads, encoding, hca)
+        self.heads = heads
 
     def set_training_mode(self):
         self.model.set_training_mode()
@@ -51,12 +54,12 @@ class ComicMischiefDetection:
                                                    min_lr=1e-8,
                                                    patience=2, 
                                                    factor=0.5)
-
         for _ in range(start_epoch, max_epochs):
             self.train(train_set, optimizer, pretrain=pretrain)
             avg_loss, accuracy, f1 = self.evaluate(validation_set)
-            print("Validation {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
-                self.head, avg_loss, accuracy, f1))
+            for head in avg_loss:
+                print("Validation {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
+                    head, avg_loss[head], accuracy[head], f1[head]))
             if lr_schedule_active:
                 lr_scheduler.step(f1)
     
@@ -68,11 +71,14 @@ class ComicMischiefDetection:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         device = "cpu" # hack to overcome cuda running out of memory
         
-        dataset = CustomDataset(json_data, text_pad_length, img_pad_length, audio_pad_length)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+        dataset = CustomDataset(json_data, text_pad_length, 
+                                img_pad_length, audio_pad_length)
+        dataloader = DataLoader(dataset, 
+                                batch_size=batch_size, 
+                                shuffle=shuffle)
         self.set_training_mode()
 
-        total_loss = 0 
+        total_loss = {}
         with torch.no_grad():
             for batch_idx, batch in enumerate(dataloader):
                 optimizer.zero_grad()
@@ -88,39 +94,30 @@ class ComicMischiefDetection:
                 batch_gory = batch["gory"].to(device)
                 batch_slapstick = batch["slapstick"].to(device)
                 batch_sarcasm = batch["sarcasm"].to(device)
+                actual = {}
+                for head in self.heads:
+                    if head == "binary":
+                        actual[head] = batch_binary
+                    elif head == "multi":
+                        actual[head] = [batch_mature, batch_gory, 
+                                        batch_slapstick, batch_sarcasm]
+                    else:
+                        ### HACk for Pretrain
+                        assert(head == "pretrain")
+                        actual[head] = batch_binary
 
-                # TODO: 
-                # When there are multiple heads send all the outputs in a 
-                # dict to forward_pass. For example:
-                # {
-                #   "task_binary": batch_binary,
-                #   "task_multi": [batch_mature, .....]
-                #   "task_pretrain": batch_binary
-                # }
-                # In HICCAP.forward_pass, call each task's forward_pass
-                # function by pulling the outputs from the above dict
-                # In fact it should also collect all the losses 
-                # and return in a dict. For example:
-                # {
-                #   "task_binary": binary_loss,
-                #   "task_multi": multi_loss,
-                #   "task_pretrain": pretrain_loss
-                # }
-                if self.head == "binary":
-                    actual = batch_binary
-                elif self.head == "multi":
-                    actual = [batch_mature, batch_gory, batch_slapstick, batch_sarcasm]
-                elif self.head == "pretrain":
-                    actual = batch_binary
-                loss = self.model.forward_pass(batch_text, 
-                                        batch_text_mask, 
-                                        batch_image, 
-                                        batch_mask_img, 
-                                        batch_audio, 
-                                        batch_mask_audio,
-                                        self.model,
-                                        actual)
-                total_loss += loss
+                outputs = self.model.forward_backward(batch_text, 
+                                                      batch_text_mask, 
+                                                      batch_image, 
+                                                      batch_mask_img, 
+                                                      batch_audio, 
+                                                      batch_mask_audio,
+                                                      self.model,
+                                                      actual)
+                for head, loss in outputs.items():
+                    if head not in total_loss:
+                        total_loss[head] = 0
+                    total_loss[head] += loss
                 optimizer.step()
                 batch_idx += 1
 
@@ -133,13 +130,14 @@ class ComicMischiefDetection:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         device = "cpu" # Hack to overcome CUDA out of memory condtion 
 
-        dataset = CustomDataset(json_data, text_pad_length, img_pad_length, audio_pad_length)
+        dataset = CustomDataset(json_data, text_pad_length, 
+                                img_pad_length, audio_pad_length)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
         self.set_eval_mode()
 
-        total_loss = 0 
-        all_preds = []
-        all_labels = []
+        total_loss = {} 
+        all_preds = {}
+        all_labels = {}
         with torch.no_grad():
             for batch in dataloader:
                 batch_text = batch['text'].to(device)
@@ -158,37 +156,48 @@ class ComicMischiefDetection:
                                            batch_mask_img, 
                                            batch_audio, 
                                            batch_mask_audio)
-                
-                if self.head == "binary":
-                    pred = batch["binary"].to(device) # batch_size by 2
-                    batch_pred = [pred]
+                for head, output in outputs.items():
+                    if head == "binary":
+                        pred = batch["binary"].to(device) # batch_size by 2
+                        batch_pred = [pred]
+                    elif head == "multi":
+                        batch_pred = [batch_mature, batch_gory, 
+                                      batch_slapstick, batch_sarcasm]
+                    else:
+                        assert(head == "pretrain")
+                        ### Hack FOR PRETRAINING ###
+                        pred = batch["binary"].to(device) # batch_size by 2
+                        batch_pred = [pred]
+
+                    for out, pred in zip(output, batch_pred):
+                        loss = F.binary_cross_entropy(out, pred)
+                        if head not in total_loss:
+                            total_loss[head] = 0
+                        total_loss[head] += loss.item()
+
+                        # Collect predictions and true labels
+                        preds = (out[:, 1] > 0.5).cpu().numpy()  # Using the second column for binary classification
+                        true_labels = (pred[:, 1] > 0.5).cpu().numpy()  # Using the second column for binary classification
                     
-                elif self.head == "multi":
-                    batch_pred = [batch_mature, batch_gory, batch_slapstick, batch_sarcasm]
-
-                else:
-                    ### Hack FOR PRETRAINING ###
-                    pred = batch["binary"].to(device) # batch_size by 2
-                    batch_pred = [pred]
-
-                for out, pred in zip(outputs, batch_pred):
-                    loss = F.binary_cross_entropy(out, pred)
-                    total_loss += loss.item()
-
-                    # Collect predictions and true labels
-                    preds = (out[:, 1] > 0.5).cpu().numpy()  # Using the second column for binary classification
-                    true_labels = (pred[:, 1] > 0.5).cpu().numpy()  # Using the second column for binary classification
-                
-                    all_preds.extend(preds)
-                    all_labels.extend(true_labels)
-
-        # Calculate accuracy and F1 score
-        accuracy = accuracy_score(all_labels, all_preds)
-        f1 = f1_score(all_labels, all_preds, average='macro')  # use 'macro' or 'weighted' for multi-class
-        avg_loss = total_loss / len(dataloader)
+                        if head not in all_preds:
+                            all_preds[head] = []
+                        all_preds[head].extend(preds)
+                        if head not in all_labels:
+                            all_labels[head] = []
+                        all_labels[head].extend(true_labels)
+        accuracy = {}
+        f1 = {}
+        avg_loss = {}
+        for head, labels in all_labels.items():
+            # Calculate accuracy and F1 score
+            accuracy[head] = accuracy_score(labels, all_preds[head])
+            f1[head] = f1_score(labels, all_preds[head], 
+                                average='macro')  # use 'macro' or 'weighted' for multi-class
+            avg_loss[head] = total_loss[head] / len(dataloader)
         return avg_loss, accuracy, f1
 
     def test(self):
         avg_loss, accuracy, f1 = self.evaluate("test_features_lrec_camera.json")
-        print("Test {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
-            self.head, avg_loss, accuracy, f1))
+        for head in avg_loss:
+            print("Test {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
+                head, avg_loss[head], accuracy[head], f1[head]))
