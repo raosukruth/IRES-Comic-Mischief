@@ -19,7 +19,10 @@ def create_encoding_hca():
     return FeatureEncoding(), HCA()
 
 class ComicMischiefDetection:
-    def __init__(self, heads=None, encoding=None, hca=None):
+    def __init__(self, heads=None, encoding=None, hca=None, strategy="naive"):
+        if strategy == None:
+            strategy = "naive"
+        self.strategy = strategy
         if heads == None:
             raise ValueError("Heads should be either {}".format(C.supported_heads))     
         for head in heads:
@@ -54,8 +57,15 @@ class ComicMischiefDetection:
                                                    min_lr=1e-8,
                                                    patience=2, 
                                                    factor=0.5)
-        # strategy = FT.Naive(self.heads)
-        strategy = FT.Weighted(self.heads)
+        strategy = None
+        if self.strategy == "naive":
+            strategy = FT.Naive(self.heads)
+        elif self.strategy == "weighted":
+            strategy = FT.Weighted(self.heads)
+        else:
+            assert(self.strategy == "dsg")
+            strategy = FT.DynamicStopAndGo(self.heads)
+        assert(strategy != None)
         for _ in range(start_epoch, max_epochs):
             self.train(train_set, optimizer, strategy)
             avg_loss, accuracy, f1 = self.evaluate(validation_set)
