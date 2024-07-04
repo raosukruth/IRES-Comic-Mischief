@@ -1,6 +1,5 @@
 from FeatureEncoding import FeatureEncoding
 from HCA import HCA
-from ComicMischiefTasks import ComicMischiefBinary, ComicMischiefMulti
 import torch
 from torch.nn import functional as F
 import numpy as np
@@ -21,10 +20,10 @@ def create_encoding_hca():
 class ComicMischiefDetection:
     def __init__(self, heads=None, encoding=None, hca=None):
         if heads == None:
-            raise ValueError("Heads should be either 'binary' or 'multi' or 'pretrain")     
+            raise ValueError("Heads should be either {}".format(C.supported_heads))     
         for head in heads:
-            if head not in ['binary', 'multi', 'pretrain']:
-                raise ValueError("Heads should be either 'binary' or 'multi' or 'pretrain")     
+            if head not in C.supported_heads:
+                raise ValueError("Heads should be either {}".format(C.supported_heads))     
         self.model = HICCAP(heads, encoding, hca)
         self.heads = heads
 
@@ -55,7 +54,7 @@ class ComicMischiefDetection:
                                                    patience=2, 
                                                    factor=0.5)
         for _ in range(start_epoch, max_epochs):
-            self.train(train_set, optimizer, pretrain=pretrain)
+            self.train(train_set, optimizer)
             avg_loss, accuracy, f1 = self.evaluate(validation_set)
             for head in avg_loss:
                 print("Validation {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
@@ -66,7 +65,7 @@ class ComicMischiefDetection:
     def train(self, json_data, optimizer, batch_size=24,
               text_pad_length=500, img_pad_length=36, 
               audio_pad_length=63, shuffle=True, 
-              device=None, pretrain=False):
+              device=None):
         if device == None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         device = "cpu" # hack to overcome cuda running out of memory
@@ -98,26 +97,30 @@ class ComicMischiefDetection:
                 for head in self.heads:
                     if head == "binary":
                         actual[head] = batch_binary
-                    elif head == "multi":
-                        actual[head] = [batch_mature, batch_gory, 
-                                        batch_slapstick, batch_sarcasm]
+                    elif head == "mature":
+                        actual[head] = batch_mature
+                    elif head == "gory":
+                        actual[head] = batch_gory
+                    elif head == "slapstick":
+                        actual[head] = batch_slapstick
                     else:
-                        ### HACk for Pretrain
-                        assert(head == "pretrain")
-                        actual[head] = batch_binary
+                        assert(head == "sarcasm")
+                        actual[head] = batch_sarcasm
 
-                outputs = self.model.forward_backward(batch_text, 
-                                                      batch_text_mask, 
-                                                      batch_image, 
-                                                      batch_mask_img, 
-                                                      batch_audio, 
-                                                      batch_mask_audio,
-                                                      self.model,
-                                                      actual)
+                outputs = self.model.forward_pass(batch_text, 
+                                                  batch_text_mask, 
+                                                  batch_image, 
+                                                  batch_mask_img, 
+                                                  batch_audio, 
+                                                  batch_mask_audio,
+                                                  self.model,
+                                                  actual)
                 for head, loss in outputs.items():
+                    loss.requires_grad_()
+                    loss.backward()
                     if head not in total_loss:
                         total_loss[head] = 0
-                    total_loss[head] += loss
+                    total_loss[head] += loss.item()
                 optimizer.step()
                 batch_idx += 1
                 break
@@ -161,15 +164,20 @@ class ComicMischiefDetection:
                     if head == "binary":
                         pred = batch["binary"].to(device) # batch_size by 2
                         batch_pred = [pred]
-                    elif head == "multi":
-                        batch_pred = [batch_mature, batch_gory, 
-                                      batch_slapstick, batch_sarcasm]
-                    else:
-                        assert(head == "pretrain")
-                        ### Hack FOR PRETRAINING ###
-                        pred = batch["binary"].to(device) # batch_size by 2
+                    elif head == "mature":
+                        pred = batch["mature"].to(device) # batch_size by 2
                         batch_pred = [pred]
-
+                    elif head == "gory":
+                        pred = batch["gory"].to(device) # batch_size by 2
+                        batch_pred = [pred]
+                    elif head == "slapstick":
+                        pred = batch["slapstick"].to(device) # batch_size by 2
+                        batch_pred = [pred]
+                    else:
+                        assert(head == "sarcasm")
+                        pred = batch["sarcasm"].to(device) # batch_size by 2
+                        batch_pred = [pred]
+                    output = [output]
                     for out, pred in zip(output, batch_pred):
                         loss = F.binary_cross_entropy(out, pred)
                         if head not in total_loss:

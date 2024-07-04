@@ -1,18 +1,18 @@
 from torch import nn
 from FeatureEncoding import FeatureEncoding
 from HCA import HCA
-from ComicMischiefTasks import ComicMischiefBinary, ComicMischiefMulti
+import ComicMischiefTasks as Tasks
 import torch
-
+import config as C
 
 class HICCAP(nn.Module):
     def __init__(self, heads=None, encoding=None, hca=None):
         super(HICCAP, self).__init__()
         if heads == None:
-            raise ValueError("Heads should be either 'binary' or 'multi' or 'pretrain")     
+            raise ValueError("Heads should be either {}".format(C.supported_heads))     
         for head in heads:
-            if head not in ['binary', 'multi', 'pretrain']:
-                raise ValueError("Heads should be either 'binary' or 'multi' or 'pretrain")  
+            if head not in C.supported_heads:
+                raise ValueError("Heads should be either {}".format(C.supported_heads))
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         device = "cpu"
         if encoding == None:
@@ -27,13 +27,16 @@ class HICCAP(nn.Module):
         self.task_heads = {}
         for head in heads:
             if head == "binary":
-                self.task_heads[head] = ComicMischiefBinary()
-            elif head == "multi":
-                self.task_heads[head] = ComicMischiefMulti()
+                self.task_heads[head] = Tasks.ComicMischiefBinary()
+            elif head == "mature":
+                self.task_heads[head] = Tasks.ComicMischiefMature()
+            elif head == "gory":
+                self.task_heads[head] = Tasks.ComicMischiefGory()
+            elif head == "slapstick":
+                self.task_heads[head] = Tasks.ComicMischiefSlapstick()
             else:
-                assert(head == "pretrain")
-                ### Use the class that implements VTM, VAM, ATM ###
-                self.task_heads[head] = ComicMischiefBinary()
+                assert(head == "sarcasm")
+                self.task_heads[head] = Tasks.ComicMischiefSarcasm()
             self.task_heads[head].to(device)
 
     def set_training_mode(self):
@@ -74,18 +77,18 @@ class HICCAP(nn.Module):
         
         return output_text, output_audio, output_image
     
-    def forward_backward(self, sentences, mask, image, image_mask, audio, audio_mask,
-              reg_model, actual):
+    def forward_pass(self, sentences, mask, image, image_mask, audio, audio_mask,
+                     reg_model, actual):
         output_text, output_audio, output_image = self.forward(sentences, mask, image, 
-                                                             image_mask, audio, audio_mask)
+                                                               image_mask, audio, audio_mask)
         outputs = {}
         for head in self.task_heads:
-            output = self.task_heads[head].forward_backward(output_text, 
+            output = self.task_heads[head].forward_pass(output_text, 
                                                         output_audio, 
                                                         output_image, 
                                                         reg_model, 
                                                         actual[head])
-            outputs[head] = output
+            outputs.update(output)
         return outputs
     
     def eval_pass(self, sentences, mask, image, image_mask, audio, audio_mask):
@@ -96,5 +99,5 @@ class HICCAP(nn.Module):
         outputs = {}
         for head in self.task_heads:
             output = self.task_heads[head].eval_pass(output_text, output_audio, output_image)
-            outputs[head] = output
+            outputs.update(output)
         return outputs

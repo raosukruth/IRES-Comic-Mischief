@@ -4,15 +4,11 @@ import sys
 def run(pretrain):
     feature_encoding, hca = create_encoding_hca()
     if pretrain:
-        ### Do Pretraining here ###
-        model_pretrain = ComicMischiefDetection(heads=["pretrain"], 
-                                                encoding=feature_encoding, 
-                                                hca=hca)
-        model_pretrain.training_loop(0, 1, "train_features_lrec_camera.json", 
-                                     "val_features_lrec_camera.json", 
-                                     pretrain=True)
+        ### Load Pretrained Weights Here ###
+        pass
 
-    model_train = ComicMischiefDetection(heads=["binary", "multi"], 
+    heads = ['binary', 'mature', 'gory', 'slapstick', 'sarcasm']
+    model_train = ComicMischiefDetection(heads=heads, 
                                          encoding=feature_encoding, 
                                          hca=hca)
     model_train.training_loop(0, 1, "train_features_lrec_camera.json", 
