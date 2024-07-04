@@ -46,7 +46,6 @@ class ComicMischiefMature(nn.Module):
     def __init__(self):
         super(ComicMischiefMature, self).__init__()
         self.mature = ComicMischiefBinary()
-        self.mature_w = 0.1
 
     def forward(self, output_text, output_audio, output_image):
         mature = self.mature(output_text, output_audio, output_image)
@@ -76,7 +75,6 @@ class ComicMischiefGory(nn.Module):
     def __init__(self):
         super(ComicMischiefGory, self).__init__()
         self.gory = ComicMischiefBinary()
-        self.gory_w = 0.4
 
     def forward(self, output_text, output_audio, output_image):
         gory = self.gory(output_text, output_audio, output_image)
@@ -106,7 +104,6 @@ class ComicMischiefSlapstick(nn.Module):
     def __init__(self):
         super(ComicMischiefSlapstick, self).__init__()
         self.slapstick = ComicMischiefBinary()
-        self.slap_w = 0.2
 
     def forward(self, output_text, output_audio, output_image):
         slapstick = self.slapstick(output_text, output_audio, output_image)
@@ -136,7 +133,6 @@ class ComicMischiefSarcasm(nn.Module):
     def __init__(self):
         super(ComicMischiefSarcasm, self).__init__()
         self.sarcasm = ComicMischiefBinary()
-        self.sarcasm_w = 0.2
 
     def forward(self, output_text, output_audio, output_image):
         sarcasm = self.sarcasm(output_text, output_audio, output_image)

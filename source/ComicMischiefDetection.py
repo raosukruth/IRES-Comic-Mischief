@@ -13,6 +13,7 @@ from HICCAP import HICCAP
 from torch.utils.data import DataLoader
 from CustomDataset import CustomDataset
 import Utils
+import FineTuning as FT
 
 def create_encoding_hca():
     return FeatureEncoding(), HCA()
@@ -35,7 +36,7 @@ class ComicMischiefDetection:
 
     def training_loop(self, start_epoch, max_epochs, 
                       train_set, validation_set, 
-                      optimizer_type="adam", pretrain=False):
+                      optimizer_type="adam"):
         learning_rate = 1.9e-5
         weight_decay_val = 0
         lr_schedule_active = False
@@ -53,8 +54,10 @@ class ComicMischiefDetection:
                                                    min_lr=1e-8,
                                                    patience=2, 
                                                    factor=0.5)
+        # strategy = FT.Naive(self.heads)
+        strategy = FT.Weighted(self.heads)
         for _ in range(start_epoch, max_epochs):
-            self.train(train_set, optimizer)
+            self.train(train_set, optimizer, strategy)
             avg_loss, accuracy, f1 = self.evaluate(validation_set)
             for head in avg_loss:
                 print("Validation {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
@@ -62,7 +65,7 @@ class ComicMischiefDetection:
             if lr_schedule_active:
                 lr_scheduler.step(f1)
     
-    def train(self, json_data, optimizer, batch_size=24,
+    def train(self, json_data, optimizer, strategy, batch_size=24,
               text_pad_length=500, img_pad_length=36, 
               audio_pad_length=63, shuffle=True, 
               device=None):
@@ -77,7 +80,6 @@ class ComicMischiefDetection:
                                 shuffle=shuffle)
         self.set_training_mode()
 
-        total_loss = {}
         with torch.no_grad():
             for batch_idx, batch in enumerate(dataloader):
                 optimizer.zero_grad()
@@ -115,12 +117,10 @@ class ComicMischiefDetection:
                                                   batch_mask_audio,
                                                   self.model,
                                                   actual)
+                strategy.backward(outputs)
                 for head, loss in outputs.items():
                     loss.requires_grad_()
                     loss.backward()
-                    if head not in total_loss:
-                        total_loss[head] = 0
-                    total_loss[head] += loss.item()
                 optimizer.step()
                 batch_idx += 1
                 break
