@@ -83,13 +83,13 @@ class ComicMischiefDetection:
             for head in avg_loss:
                 print("Validation {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
                     head, avg_loss[head], accuracy[head], f1[head]))
-            Utils.save_dict("validation_avg_loss.pkl", avg_loss)
-            Utils.save_dict("validation_accuracy.pkl", accuracy)
-            Utils.save_dict("validation_f1.pkl", f1)
+            Utils.save_dict("{}_validation_avg_loss.pkl".format(self.strategy), avg_loss)
+            Utils.save_dict("{}_validation_accuracy.pkl".format(self.strategy), accuracy)
+            Utils.save_dict("{}_validation_f1.pkl".format(self.strategy), f1)
 
             if lr_schedule_active:
                 lr_scheduler.step(f1)
-        Utils.save_dict("train_loss_history.pkl", loss_history)
+        Utils.save_dict("{}_train_loss_history.pkl".format(self.strategy), loss_history)
     
     def train(self, training_set, validation_set, optimizer, strategy, 
               loss_history,
@@ -240,6 +240,6 @@ class ComicMischiefDetection:
         for head in avg_loss:
             print("Test {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
                 head, avg_loss[head], accuracy[head], f1[head]))
-        Utils.save_dict("train_avg_loss.pkl", avg_loss)
-        Utils.save_dict("train_accuracy.pkl", accuracy)
-        Utils.save_dict("train_f1.pkl", f1)
+        Utils.save_dict("{}_train_avg_loss.pkl".format(self.strategy), avg_loss)
+        Utils.save_dict("{}_train_accuracy.pkl".format(self.strategy), accuracy)
+        Utils.save_dict("{}_train_f1.pkl".format(self.strategy), f1)
