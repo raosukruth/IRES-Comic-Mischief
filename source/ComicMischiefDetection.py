@@ -19,7 +19,7 @@ def create_encoding_hca():
     return FeatureEncoding(), HCA()
 
 class ComicMischiefDetection:
-    def __init__(self, heads=None, encoding=None, hca=None, strategy="naive"):
+    def __init__(self, heads=None, encoding=None, hca=None, strategy="naive", pretrain=False):
         if strategy == None:
             strategy = "naive"
         self.strategy = strategy
@@ -27,8 +27,11 @@ class ComicMischiefDetection:
             raise ValueError("Heads should be either {}".format(C.supported_heads))     
         for head in heads:
             if head not in C.supported_heads:
-                raise ValueError("Heads should be either {}".format(C.supported_heads))     
+                raise ValueError("Heads should be either {}".format(C.supported_heads))
         self.model = HICCAP(heads, encoding, hca)
+        if pretrain:
+            self.model.load("./fe.pth", "./hca.pth")
+
         self.heads = heads
 
     def set_training_mode(self):
@@ -67,7 +70,7 @@ class ComicMischiefDetection:
             strategy = FT.DynamicStopAndGo(self.heads)
         assert(strategy != None)
         for _ in range(start_epoch, max_epochs):
-            self.train(train_set, optimizer, strategy)
+            self.train(train_set, validation_set, optimizer, strategy)
             avg_loss, accuracy, f1 = self.evaluate(validation_set)
             for head in avg_loss:
                 print("Validation {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
@@ -75,7 +78,8 @@ class ComicMischiefDetection:
             if lr_schedule_active:
                 lr_scheduler.step(f1)
     
-    def train(self, json_data, optimizer, strategy, batch_size=24,
+    def train(self, training_set, validation_set, optimizer, strategy, 
+              batch_size=32,
               text_pad_length=500, img_pad_length=36, 
               audio_pad_length=63, shuffle=True, 
               device=None):
@@ -83,17 +87,16 @@ class ComicMischiefDetection:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         device = "cpu" # hack to overcome cuda running out of memory
         
-        dataset = CustomDataset(json_data, text_pad_length, 
+        dataset = CustomDataset(training_set, text_pad_length, 
                                 img_pad_length, audio_pad_length)
         dataloader = DataLoader(dataset, 
                                 batch_size=batch_size, 
                                 shuffle=shuffle)
         self.set_training_mode()
-
+        eval_batch_count = strategy.get_eval_iter_count()
         with torch.no_grad():
             for batch_idx, batch in enumerate(dataloader):
-                optimizer.zero_grad()
-
+                strategy.start_iter()
                 batch_text = batch['text'].to(device)
                 batch_text_mask = batch['text_mask'].to(device)
                 batch_image = batch['image'].float().to(device)
@@ -127,13 +130,14 @@ class ComicMischiefDetection:
                                                   batch_mask_audio,
                                                   self.model,
                                                   actual)
+                optimizer.zero_grad()
                 strategy.backward(outputs)
-                for head, loss in outputs.items():
-                    loss.requires_grad_()
-                    loss.backward()
                 optimizer.step()
-                batch_idx += 1
-                break
+
+                if (batch_idx + 1) % eval_batch_count == 0:
+                    loss, accuracy, _ = self.evaluate(validation_set)
+                    strategy.process_eval(loss, accuracy)
+                strategy.end_iter()
 
     def evaluate(self, json_data, batch_size=24, 
                  text_pad_length=500, img_pad_length=36, 
@@ -153,7 +157,7 @@ class ComicMischiefDetection:
         all_preds = {}
         all_labels = {}
         with torch.no_grad():
-            for batch in dataloader:
+            for batch_idx, batch in enumerate(dataloader):
                 batch_text = batch['text'].to(device)
                 batch_text_mask = batch['text_mask'].to(device)
                 batch_image = batch['image'].float().to(device)
@@ -204,7 +208,7 @@ class ComicMischiefDetection:
                         if head not in all_labels:
                             all_labels[head] = []
                         all_labels[head].extend(true_labels)
-                break
+
         accuracy = {}
         f1 = {}
         avg_loss = {}
@@ -214,6 +218,7 @@ class ComicMischiefDetection:
             f1[head] = f1_score(labels, all_preds[head], 
                                 average='macro')  # use 'macro' or 'weighted' for multi-class
             avg_loss[head] = total_loss[head] / len(dataloader)
+        
         return avg_loss, accuracy, f1
 
     def test(self):

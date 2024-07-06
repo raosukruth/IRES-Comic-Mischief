@@ -4,6 +4,7 @@ from HCA import HCA
 import ComicMischiefTasks as Tasks
 import torch
 import config as C
+import os
 
 class HICCAP(nn.Module):
     def __init__(self, heads=None, encoding=None, hca=None):
@@ -44,6 +45,21 @@ class HICCAP(nn.Module):
         self.hca.train()
         for head in self.task_heads:
             self.task_heads[head].train()
+        
+    def save(self):
+        if os.path.exists("modular_fe.pth"):
+            os.remove("modular_fe.pth")
+        torch.save(self.feature_encoding.state_dict(), "/tmp/modular_fe.pth")
+        
+        if os.path.exists("modular_hca.pth"):
+            os.remove("modular_hca.pth")
+        torch.save(self.hca.state_dict(), "/tmp/modular_hca.pth")
+    
+    def load(self, fe_file, hca_file):
+        modular_fe = torch.load(fe_file)
+        self.feature_encoding.load_state_dict(modular_fe['model_state'], strict=False)
+        modular_hca = torch.load(hca_file)
+        self.hca.load_state_dict(modular_hca['model_state'], strict=False)
 
     def set_eval_mode(self):
         self.feature_encoding.eval()

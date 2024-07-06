@@ -10,6 +10,9 @@ class FeatureEncoding(nn.Module):
 
         self.bert = BertModel.from_pretrained('bert-base-uncased', output_hidden_states=True,
                                                                 output_attentions=True)
+        
+        bert = BertModel.from_pretrained('bert-base-uncased', output_hidden_states=True,
+                                                                output_attentions=True)
         self.rnn_img = nn.LSTM(1024, self.rnn_units, num_layers=2, bidirectional=True, batch_first=True)
         self.rnn_img_drop_norm = nn.Sequential(
             nn.Dropout(dropout),
