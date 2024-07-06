@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import pickle
 
 # the below is used in the training loop
 l2_regularize = True
@@ -75,3 +76,11 @@ def hamming_score(y_true, y_pred,
                 c += 1
         acc_list.append (c/4)
     return np.mean(acc_list)
+
+def save_dict(file_name, data_dict):
+    with open(file_name, 'wb') as pickle_file:
+        pickle.dump(data_dict, pickle_file)
+
+def update_loss_history(loss_history, losses):
+    for head, loss in losses.items():
+        loss_history[head].append(loss.item())

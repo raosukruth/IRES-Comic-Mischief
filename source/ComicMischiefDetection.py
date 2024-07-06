@@ -69,16 +69,30 @@ class ComicMischiefDetection:
             assert(self.strategy == "dsg")
             strategy = FT.DynamicStopAndGo(self.heads)
         assert(strategy != None)
+
+        loss_history = {
+            "binary": [],
+            "mature": [],
+            "gory": [],
+            "slapstick": [],
+            "sarcasm": []
+        }
         for _ in range(start_epoch, max_epochs):
-            self.train(train_set, validation_set, optimizer, strategy)
+            self.train(train_set, validation_set, optimizer, strategy, loss_history)
             avg_loss, accuracy, f1 = self.evaluate(validation_set)
             for head in avg_loss:
                 print("Validation {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
                     head, avg_loss[head], accuracy[head], f1[head]))
+            Utils.save_dict("validation_avg_loss.pkl", avg_loss)
+            Utils.save_dict("validation_accuracy.pkl", accuracy)
+            Utils.save_dict("validation_f1.pkl", f1)
+
             if lr_schedule_active:
                 lr_scheduler.step(f1)
+        Utils.save_dict("train_loss_history.pkl", loss_history)
     
     def train(self, training_set, validation_set, optimizer, strategy, 
+              loss_history,
               batch_size=8,
               text_pad_length=500, img_pad_length=36, 
               audio_pad_length=63, shuffle=True, 
@@ -94,7 +108,6 @@ class ComicMischiefDetection:
                                 shuffle=shuffle)
         self.set_training_mode()
         eval_batch_count = strategy.get_eval_iter_count()
-       
         for batch_idx, batch in enumerate(dataloader):
             strategy.start_iter()
             batch_text = batch['text'].to(device)
@@ -130,6 +143,7 @@ class ComicMischiefDetection:
                                                 batch_mask_audio,
                                                 self.model,
                                                 actual)
+            Utils.update_loss_history(loss_history, outputs)
             optimizer.zero_grad()
             strategy.backward(outputs)
             optimizer.step()
@@ -226,3 +240,6 @@ class ComicMischiefDetection:
         for head in avg_loss:
             print("Test {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
                 head, avg_loss[head], accuracy[head], f1[head]))
+        Utils.save_dict("train_avg_loss.pkl", avg_loss)
+        Utils.save_dict("train_accuracy.pkl", accuracy)
+        Utils.save_dict("train_f1.pkl", f1)
