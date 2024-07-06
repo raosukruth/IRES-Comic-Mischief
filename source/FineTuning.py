@@ -12,8 +12,8 @@ class Naive:
 
     def backward(self, outputs):
         for loss in outputs.values():
-            loss.requires_grad_()
-            loss.backward()
+            assert(loss.requires_grad == True)
+            loss.backward(retain_graph=True)
 
     def process_eval(self, loss, accuracy):
         pass
@@ -40,13 +40,13 @@ class Weighted:
         total_loss = 0
         for head, loss in outputs.items():
             if head not in self.weights:
-                loss.requires_grad_()
-                loss.backward()
+                assert(loss.requires_grad == True)
+                loss.backward(retain_graph=True)
             else:
                 total_loss += loss * self.weights[head] 
         if total_loss:
-            total_loss.requires_grad_() ## Remove after debugging
-            total_loss.backward()
+            assert(total_loss.requires_grad == True)
+            total_loss.backward(retain_graph=True)
 
     def process_eval(self, loss, accuracy):
         # Adjust the weights based on loss and/or accuracy
@@ -94,8 +94,8 @@ class DynamicStopAndGo:
                     run_backwards = True
             if run_backwards:
                 loss = outputs[head]
-                loss.requires_grad_() ## Remove after debugging
-                loss.backward()                
+                assert(loss.requires_grad == True)
+                loss.backward(retain_graph=True)                
             
     def update_losses(self, attr, current_loss):
         if not attr.best_loss:

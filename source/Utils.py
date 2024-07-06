@@ -27,6 +27,15 @@ def mask_vector(max_size, arr):
         output = [1] * arr.shape[0] + [0] * len_zero_value
     return torch.tensor(output)
 
+# this assumes tokens are at end and is used for text
+def mask_vector_reverse(max_size, arr):
+    if arr.shape[0] > max_size:
+        output = [1] * max_size
+    else:
+        len_zero_value = max_size - arr.shape[0]
+        output = [0] * len_zero_value + [1] * arr.shape[0]
+    return torch.tensor(output)
+
 def pad_segment(feature, max_feature_len, pad_idx):
     if isinstance(feature, np.ndarray):
         feature = torch.from_numpy(feature)

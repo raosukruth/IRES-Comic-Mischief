@@ -79,7 +79,7 @@ class ComicMischiefDetection:
                 lr_scheduler.step(f1)
     
     def train(self, training_set, validation_set, optimizer, strategy, 
-              batch_size=32,
+              batch_size=8,
               text_pad_length=500, img_pad_length=36, 
               audio_pad_length=63, shuffle=True, 
               device=None):
@@ -94,50 +94,50 @@ class ComicMischiefDetection:
                                 shuffle=shuffle)
         self.set_training_mode()
         eval_batch_count = strategy.get_eval_iter_count()
-        with torch.no_grad():
-            for batch_idx, batch in enumerate(dataloader):
-                strategy.start_iter()
-                batch_text = batch['text'].to(device)
-                batch_text_mask = batch['text_mask'].to(device)
-                batch_image = batch['image'].float().to(device)
-                batch_mask_img = batch['image_mask'].to(device)
-                batch_audio = batch['audio'].float().to(device)
-                batch_mask_audio = batch['audio_mask'].to(device)
-                batch_binary = batch["binary"].to(device) # batch_size by 2
-                batch_mature = batch["mature"].to(device)
-                batch_gory = batch["gory"].to(device)
-                batch_slapstick = batch["slapstick"].to(device)
-                batch_sarcasm = batch["sarcasm"].to(device)
-                actual = {}
-                for head in self.heads:
-                    if head == "binary":
-                        actual[head] = batch_binary
-                    elif head == "mature":
-                        actual[head] = batch_mature
-                    elif head == "gory":
-                        actual[head] = batch_gory
-                    elif head == "slapstick":
-                        actual[head] = batch_slapstick
-                    else:
-                        assert(head == "sarcasm")
-                        actual[head] = batch_sarcasm
+       
+        for batch_idx, batch in enumerate(dataloader):
+            strategy.start_iter()
+            batch_text = batch['text'].to(device)
+            batch_text_mask = batch['text_mask'].to(device)
+            batch_image = batch['image'].float().to(device)
+            batch_mask_img = batch['image_mask'].to(device)
+            batch_audio = batch['audio'].float().to(device)
+            batch_mask_audio = batch['audio_mask'].to(device)
+            batch_binary = batch["binary"].to(device) # batch_size by 2
+            batch_mature = batch["mature"].to(device)
+            batch_gory = batch["gory"].to(device)
+            batch_slapstick = batch["slapstick"].to(device)
+            batch_sarcasm = batch["sarcasm"].to(device)
+            actual = {}
+            for head in self.heads:
+                if head == "binary":
+                    actual[head] = batch_binary
+                elif head == "mature":
+                    actual[head] = batch_mature
+                elif head == "gory":
+                    actual[head] = batch_gory
+                elif head == "slapstick":
+                    actual[head] = batch_slapstick
+                else:
+                    assert(head == "sarcasm")
+                    actual[head] = batch_sarcasm
 
-                outputs = self.model.forward_pass(batch_text, 
-                                                  batch_text_mask, 
-                                                  batch_image, 
-                                                  batch_mask_img, 
-                                                  batch_audio, 
-                                                  batch_mask_audio,
-                                                  self.model,
-                                                  actual)
-                optimizer.zero_grad()
-                strategy.backward(outputs)
-                optimizer.step()
+            outputs = self.model.forward_pass(batch_text, 
+                                                batch_text_mask, 
+                                                batch_image, 
+                                                batch_mask_img, 
+                                                batch_audio, 
+                                                batch_mask_audio,
+                                                self.model,
+                                                actual)
+            optimizer.zero_grad()
+            strategy.backward(outputs)
+            optimizer.step()
 
-                if (batch_idx + 1) % eval_batch_count == 0:
-                    loss, accuracy, _ = self.evaluate(validation_set)
-                    strategy.process_eval(loss, accuracy)
-                strategy.end_iter()
+            if (batch_idx + 1) % eval_batch_count == 0:
+                loss, accuracy, _ = self.evaluate(validation_set)
+                strategy.process_eval(loss, accuracy)
+            strategy.end_iter()
 
     def evaluate(self, json_data, batch_size=24, 
                  text_pad_length=500, img_pad_length=36, 
@@ -156,58 +156,58 @@ class ComicMischiefDetection:
         total_loss = {} 
         all_preds = {}
         all_labels = {}
-        with torch.no_grad():
-            for batch_idx, batch in enumerate(dataloader):
-                batch_text = batch['text'].to(device)
-                batch_text_mask = batch['text_mask'].to(device)
-                batch_image = batch['image'].float().to(device)
-                batch_mask_img = batch['image_mask'].to(device)
-                batch_audio = batch['audio'].float().to(device)
-                batch_mask_audio = batch['audio_mask'].to(device)
-                batch_mature = batch["mature"].to(device) # batch_size by 2
-                batch_gory = batch["gory"].to(device) # batch_size by 2
-                batch_slapstick = batch["slapstick"].to(device) # batch_size by 2
-                batch_sarcasm = batch["sarcasm"].to(device) # batch_size by 2
-                outputs = self.model.eval_pass(batch_text, 
-                                           batch_text_mask, 
-                                           batch_image, 
-                                           batch_mask_img, 
-                                           batch_audio, 
-                                           batch_mask_audio)
-                for head, output in outputs.items():
-                    if head == "binary":
-                        pred = batch["binary"].to(device) # batch_size by 2
-                        batch_pred = [pred]
-                    elif head == "mature":
-                        pred = batch["mature"].to(device) # batch_size by 2
-                        batch_pred = [pred]
-                    elif head == "gory":
-                        pred = batch["gory"].to(device) # batch_size by 2
-                        batch_pred = [pred]
-                    elif head == "slapstick":
-                        pred = batch["slapstick"].to(device) # batch_size by 2
-                        batch_pred = [pred]
-                    else:
-                        assert(head == "sarcasm")
-                        pred = batch["sarcasm"].to(device) # batch_size by 2
-                        batch_pred = [pred]
-                    output = [output]
-                    for out, pred in zip(output, batch_pred):
-                        loss = F.binary_cross_entropy(out, pred)
-                        if head not in total_loss:
-                            total_loss[head] = 0
-                        total_loss[head] += loss.item()
+        
+        for batch_idx, batch in enumerate(dataloader):
+            batch_text = batch['text'].to(device)
+            batch_text_mask = batch['text_mask'].to(device)
+            batch_image = batch['image'].float().to(device)
+            batch_mask_img = batch['image_mask'].to(device)
+            batch_audio = batch['audio'].float().to(device)
+            batch_mask_audio = batch['audio_mask'].to(device)
+            batch_mature = batch["mature"].to(device) # batch_size by 2
+            batch_gory = batch["gory"].to(device) # batch_size by 2
+            batch_slapstick = batch["slapstick"].to(device) # batch_size by 2
+            batch_sarcasm = batch["sarcasm"].to(device) # batch_size by 2
+            outputs = self.model.eval_pass(batch_text, 
+                                        batch_text_mask, 
+                                        batch_image, 
+                                        batch_mask_img, 
+                                        batch_audio, 
+                                        batch_mask_audio)
+            for head, output in outputs.items():
+                if head == "binary":
+                    pred = batch["binary"].to(device) # batch_size by 2
+                    batch_pred = [pred]
+                elif head == "mature":
+                    pred = batch["mature"].to(device) # batch_size by 2
+                    batch_pred = [pred]
+                elif head == "gory":
+                    pred = batch["gory"].to(device) # batch_size by 2
+                    batch_pred = [pred]
+                elif head == "slapstick":
+                    pred = batch["slapstick"].to(device) # batch_size by 2
+                    batch_pred = [pred]
+                else:
+                    assert(head == "sarcasm")
+                    pred = batch["sarcasm"].to(device) # batch_size by 2
+                    batch_pred = [pred]
+                output = [output]
+                for out, pred in zip(output, batch_pred):
+                    loss = F.binary_cross_entropy(out, pred)
+                    if head not in total_loss:
+                        total_loss[head] = 0
+                    total_loss[head] += loss.item()
 
-                        # Collect predictions and true labels
-                        preds = (out[:, 1] > 0.5).cpu().numpy()  # Using the second column for binary classification
-                        true_labels = (pred[:, 1] > 0.5).cpu().numpy()  # Using the second column for binary classification
-                    
-                        if head not in all_preds:
-                            all_preds[head] = []
-                        all_preds[head].extend(preds)
-                        if head not in all_labels:
-                            all_labels[head] = []
-                        all_labels[head].extend(true_labels)
+                    # Collect predictions and true labels
+                    preds = (out[:, 1] > 0.5).cpu().numpy()  # Using the second column for binary classification
+                    true_labels = (pred[:, 1] > 0.5).cpu().numpy()  # Using the second column for binary classification
+                
+                    if head not in all_preds:
+                        all_preds[head] = []
+                    all_preds[head].extend(preds)
+                    if head not in all_labels:
+                        all_labels[head] = []
+                    all_labels[head].extend(true_labels)
 
         accuracy = {}
         f1 = {}

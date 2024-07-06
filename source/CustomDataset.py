@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 import json
-from Utils import pad_segment, mask_vector, pad_features
+from Utils import pad_segment, mask_vector, pad_features, mask_vector_reverse
 import config as C
 
 class CustomDataset(Dataset):
@@ -42,12 +42,10 @@ class CustomDataset(Dataset):
         image_path_rgb = os.path.join(image_path, f"{key}_rgb.npy")
         image_path_flow = os.path.join(image_path, f"{key}_flow.npy")
         if os.path.isfile(image_path_rgb) and os.path.isfile(image_path_flow):
-            # a1 = torch.load(image_path_rgb)
-            # a2 = torch.load(image_path_flow)
-
             a1 = np.load(image_path_rgb)
             a2 = np.load(image_path_flow)
-
+            a1 = torch.tensor(a1)
+            a2 = torch.tensor(a2)
             image_vec = a1 + a2
             masked_img = mask_vector(self.img_pad_length, image_vec)
             image_vec = pad_segment(image_vec, self.img_pad_length, 0)
@@ -60,6 +58,7 @@ class CustomDataset(Dataset):
         audio_path = C.path_to_VGGish_features + key + "_vggish.npy"
         try:
             audio_vec = np.load(audio_path)
+            audio_vec = torch.tensor(audio_vec)
         except FileNotFoundError:
             # print("Audio Not Found")
             audio_vec = torch.zeros((1, 128))
@@ -68,7 +67,9 @@ class CustomDataset(Dataset):
 
         # Process text
         text = torch.tensor(item['indexes']) # tokenized text
-        mask = mask_vector(self.text_pad_length, text)
+        # mask = mask_vector(self.text_pad_length, text)
+        text_mask = mask_vector_reverse(self.text_pad_length, text)
+
         text = pad_features([text], self.text_pad_length)[0]
 
         binary_label = torch.tensor(item['y']) 
@@ -77,12 +78,9 @@ class CustomDataset(Dataset):
         sarcasm = torch.tensor(item["sarcasm"])
         slapstick = torch.tensor(item["slapstick"])
 
-        image_vec.requires_grad_()
-        audio_vec.requires_grad_()
-
         return {
             'text': text,
-            'text_mask': mask,
+            'text_mask': text_mask,
             'image': image_vec.float(),
             'image_mask': masked_img,
             'audio': audio_vec.float(),
