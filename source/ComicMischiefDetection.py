@@ -93,7 +93,7 @@ class ComicMischiefDetection:
     
     def train(self, training_set, validation_set, optimizer, strategy, 
               loss_history,
-              batch_size=8,
+              batch_size=32,
               text_pad_length=500, img_pad_length=36, 
               audio_pad_length=63, shuffle=True, 
               device=None):
@@ -153,7 +153,7 @@ class ComicMischiefDetection:
                 strategy.process_eval(loss, accuracy)
             strategy.end_iter()
 
-    def evaluate(self, json_data, batch_size=24, 
+    def evaluate(self, json_data, batch_size=32, 
                  text_pad_length=500, img_pad_length=36, 
                  audio_pad_length=63, shuffle=True, 
                  device=None):
