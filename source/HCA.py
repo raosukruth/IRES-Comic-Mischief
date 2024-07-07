@@ -8,7 +8,6 @@ import numpy as np
 class Attention(nn.Module):
     def __init__(self, dimension):
         super(Attention, self).__init__()
-
         self.u = nn.Linear(dimension, dimension)
         self.v = nn.Parameter(torch.rand(dimension), requires_grad=True)
         self.tanh = nn.Tanh()
@@ -18,7 +17,6 @@ class Attention(nn.Module):
     def forward(self, h, mask):
        u_it = self.u(h)
        u_it = self.tanh(u_it)
-       
        alpha = torch.exp(torch.matmul(u_it, self.v))
        alpha = mask * alpha + self.epsilon
        denominator_sum = torch.sum(alpha, dim=-1, keepdim=True)
@@ -43,7 +41,6 @@ class BertOutAttention(nn.Module):
         self.query = nn.Linear(size, self.all_head_size)
         self.key = nn.Linear(ctx_dim, self.all_head_size)
         self.value = nn.Linear(ctx_dim, self.all_head_size)
-
         self.dropout = nn.Dropout(0.1)
 
     def transpose_for_scores(self, x):
@@ -140,7 +137,7 @@ class HCA(nn.Module):
             nn.Dropout(dropout),
             nn.LayerNorm(self.embedding_dim, eps=1e-5),
         ) 
-        
+
     def forward(self, hidden, rnn_img_encoded, extended_image_attention_mask, 
                 rnn_audio_encoded, extended_audio_attention_mask, extended_attention_mask):
         output_text = self.att1(hidden[-1], self.sequential_image(rnn_img_encoded), extended_image_attention_mask)
@@ -150,16 +147,22 @@ class HCA(nn.Module):
         
         output_text = output_text + hidden[-1]
 
-        output_audio = self.att2(self.sequential_audio(rnn_audio_encoded), self.sequential_image(rnn_img_encoded) ,extended_image_attention_mask)
+        output_audio = self.att2(self.sequential_audio(rnn_audio_encoded),
+                                 self.sequential_image(rnn_img_encoded),
+                                 extended_image_attention_mask)
         output_audio = self.att2_drop_norm1(output_audio)
         output_audio = self.att2(output_audio, hidden[-1], extended_attention_mask)   
         output_audio = self.att2_drop_norm2(output_audio)
         
         output_audio = output_audio + self.sequential_audio(rnn_audio_encoded)
 
-        output_image = self.att3(self.sequential_image(rnn_img_encoded), hidden[-1], extended_attention_mask)
+        output_image = self.att3(self.sequential_image(rnn_img_encoded),
+                                 hidden[-1],
+                                 extended_attention_mask)
         output_image = self.att3_drop_norm1(output_image)
-        output_image = self.att3(output_image, self.sequential_audio(rnn_audio_encoded) ,extended_audio_attention_mask)
+        output_image = self.att3(output_image,
+                                 self.sequential_audio(rnn_audio_encoded),
+                                 extended_audio_attention_mask)
         output_image = self.att3_drop_norm2(output_image)
         
         output_image = output_image + self.sequential_image(rnn_img_encoded)
@@ -168,15 +171,11 @@ class HCA(nn.Module):
         audio_mask = torch.tensor(np.array([1]*output_audio.size()[1])).to(next(self.parameters()).device) # cuda()
         image_mask = torch.tensor(np.array([1]*output_image.size()[1])).to(next(self.parameters()).device) # cuda()
 
-        #print("TEXT BEFORE SELF ATTENTION:", output_text.shape)
         output_text, attention_weights = self.attention(output_text, mask.float())
         output_text = self.attention_drop_norm(output_text)
-        #print("TEXT AFTER SELF ATTENTION:", output_text.shape)
         output_audio, attention_weights = self.attention_audio(output_audio, audio_mask.float())
         output_audio = self.attention_audio_drop_norm(output_audio)
-        #print("IMAGE BEFORE SELF ATTENTION", output_image.shape)
         output_image, attention_weights = self.attention_image(output_image, image_mask.float())
         output_image = self.attention_image_drop_norm(output_image)
-        #print("IMAGE AFTER SELF ATTENTION", output_image.shape)
 
         return output_text, output_audio, output_image

@@ -26,12 +26,9 @@ class ComicMischiefBinary(nn.Module):
         output = F.softmax(output, dim=-1)
         return output
     
-    def forward_pass(self, output_text, output_audio, output_image, 
-                     reg_model, actual):
-        output = self.forward(output_text, output_audio, output_image)
-        y_pred = output.cpu()
-        loss = Utils.compute_l2_reg_val(reg_model) + \
-            F.binary_cross_entropy(y_pred, torch.Tensor(actual))
+    def forward_pass(self, output_text, output_audio, output_image, actual):
+        y_pred = self.forward(output_text, output_audio, output_image)
+        loss = F.binary_cross_entropy(y_pred, torch.Tensor(actual))
         return {
             'binary': loss
         }
@@ -52,12 +49,11 @@ class ComicMischiefMature(nn.Module):
         return mature
     
     def forward_pass(self, output_text, output_audio, 
-                     output_image, reg_model, actual):
-        mature = self.forward(output_text, 
+                     output_image, actual):
+        mature_pred = self.forward(output_text, 
                               output_audio, 
                               output_image)
         batch_mature = actual
-        mature_pred = mature.cpu()
         loss = F.binary_cross_entropy(mature_pred, torch.Tensor(batch_mature)) 
         return {
             'mature': loss,
@@ -81,12 +77,11 @@ class ComicMischiefGory(nn.Module):
         return gory
     
     def forward_pass(self, output_text, output_audio, 
-                     output_image, reg_model, actual):
-        gory = self.forward(output_text, 
+                     output_image, actual):
+        gory_pred = self.forward(output_text, 
                             output_audio, 
                             output_image)
         batch_gory = actual
-        gory_pred = gory.cpu()
         loss = F.binary_cross_entropy(gory_pred, torch.Tensor(batch_gory))
         return {
             'gory': loss,
@@ -110,12 +105,11 @@ class ComicMischiefSlapstick(nn.Module):
         return slapstick
         
     def forward_pass(self, output_text, output_audio, 
-                     output_image, reg_model, actual):
-        slapstick = self.forward(output_text, 
+                     output_image, actual):
+        slapstick_pred = self.forward(output_text, 
                                  output_audio, 
                                  output_image)
         batch_slapstick = actual
-        slapstick_pred = slapstick.cpu()
         loss = F.binary_cross_entropy(slapstick_pred, torch.Tensor(batch_slapstick))
         return {
             'slapstick': loss,
@@ -139,12 +133,11 @@ class ComicMischiefSarcasm(nn.Module):
         return sarcasm
     
     def forward_pass(self, output_text, output_audio, 
-                     output_image, reg_model, actual):
-        sarcasm = self.forward(output_text, 
+                     output_image, actual):
+        sarcasm_pred = self.forward(output_text, 
                                output_audio, 
                                output_image)
         batch_sarcasm = actual
-        sarcasm_pred = sarcasm.cpu()
         loss = F.binary_cross_entropy(sarcasm_pred, torch.Tensor(batch_sarcasm))
         return {
             'sarcasm': loss

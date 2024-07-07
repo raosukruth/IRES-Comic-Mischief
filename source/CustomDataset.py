@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 import json
-from Utils import pad_segment, mask_vector, pad_features, mask_vector_reverse
+from Utils import pad_segment, mask_vector, pad_features
 import config as C
 
 class CustomDataset(Dataset):
@@ -67,8 +67,7 @@ class CustomDataset(Dataset):
 
         # Process text
         text = torch.tensor(item['indexes']) # tokenized text
-        # mask = mask_vector(self.text_pad_length, text)
-        text_mask = mask_vector_reverse(self.text_pad_length, text)
+        text_mask = mask_vector(self.text_pad_length, text)
 
         text = pad_features([text], self.text_pad_length)[0]
 

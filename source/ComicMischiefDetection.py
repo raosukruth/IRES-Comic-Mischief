@@ -31,7 +31,6 @@ class ComicMischiefDetection:
         self.model = HICCAP(heads, encoding, hca)
         if pretrain:
             self.model.load("./fe.pth", "./hca.pth")
-
         self.heads = heads
 
     def set_training_mode(self):
@@ -44,22 +43,13 @@ class ComicMischiefDetection:
                       train_set, validation_set, 
                       optimizer_type="adam"):
         learning_rate = 1.9e-5
-        weight_decay_val = 0
-        lr_schedule_active = False
-        reduce_on_plateau_lr_schdlr = \
-            torch.optim.lr_scheduler.ReduceLROnPlateau
 
         params = self.model.get_model_params()
         if optimizer_type == 'adam':
-            optimizer = optim.Adam(params, lr=learning_rate)
+            optimizer = optim.Adam(params, lr=learning_rate, weight_decay=0.01)
         elif optimizer_type == 'sgd':
-            optimizer = optim.SGD(params, lr=learning_rate)
+            optimizer = optim.SGD(params, lr=learning_rate, weight_decay=0.01)
         
-        lr_scheduler = reduce_on_plateau_lr_schdlr(optimizer, 
-                                                   'max', 
-                                                   min_lr=1e-8,
-                                                   patience=2, 
-                                                   factor=0.5)
         strategy = None
         if self.strategy == "naive":
             strategy = FT.Naive(self.heads)
@@ -69,7 +59,6 @@ class ComicMischiefDetection:
             assert(self.strategy == "dsg")
             strategy = FT.DynamicStopAndGo(self.heads)
         assert(strategy != None)
-
         loss_history = {
             "binary": [],
             "mature": [],
@@ -87,19 +76,16 @@ class ComicMischiefDetection:
             Utils.save_dict("{}_validation_accuracy.pkl".format(self.strategy), accuracy)
             Utils.save_dict("{}_validation_f1.pkl".format(self.strategy), f1)
 
-            if lr_schedule_active:
-                lr_scheduler.step(f1)
         Utils.save_dict("{}_train_loss_history.pkl".format(self.strategy), loss_history)
-    
+ 
     def train(self, training_set, validation_set, optimizer, strategy, 
               loss_history,
-              batch_size=32,
+              batch_size=C.batch_size,
               text_pad_length=500, img_pad_length=36, 
               audio_pad_length=63, shuffle=True, 
               device=None):
         if device == None:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        device = "cpu" # hack to overcome cuda running out of memory
+            device = C.device
         
         dataset = CustomDataset(training_set, text_pad_length, 
                                 img_pad_length, audio_pad_length)
@@ -136,31 +122,36 @@ class ComicMischiefDetection:
                     actual[head] = batch_sarcasm
 
             outputs = self.model.forward_pass(batch_text, 
-                                                batch_text_mask, 
-                                                batch_image, 
-                                                batch_mask_img, 
-                                                batch_audio, 
-                                                batch_mask_audio,
-                                                self.model,
-                                                actual)
+                                              batch_text_mask, 
+                                              batch_image, 
+                                              batch_mask_img, 
+                                              batch_audio, 
+                                              batch_mask_audio,
+                                              actual)
             Utils.update_loss_history(loss_history, outputs)
             optimizer.zero_grad()
             strategy.backward(outputs)
             optimizer.step()
 
+            if C.show_training_loss:
+                for head, loss in outputs.items():
+                    print("Training Batch: {}, Head: {}, Loss: {}".format(
+                        batch_idx, head, loss.item()))
+                print("\n")
+
             if (batch_idx + 1) % eval_batch_count == 0:
-                loss, accuracy, _ = self.evaluate(validation_set)
+                loss, accuracy, _ = self.evaluate(validation_set, is_training=True)
                 strategy.process_eval(loss, accuracy)
             strategy.end_iter()
 
-    def evaluate(self, json_data, batch_size=32, 
-                 text_pad_length=500, img_pad_length=36, 
-                 audio_pad_length=63, shuffle=True, 
-                 device=None):
-        self.set_eval_mode()
+    def evaluate(self, json_data, is_training=False,
+                 batch_size=C.batch_size, text_pad_length=500, 
+                 img_pad_length=36, audio_pad_length=63,
+                 shuffle=True, device=None):
+        if not is_training:
+            self.set_eval_mode()
         if device == None:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        device = "cpu" # Hack to overcome CUDA out of memory condtion 
+            device = C.device
 
         dataset = CustomDataset(json_data, text_pad_length, 
                                 img_pad_length, audio_pad_length)
@@ -222,7 +213,6 @@ class ComicMischiefDetection:
                     if head not in all_labels:
                         all_labels[head] = []
                     all_labels[head].extend(true_labels)
-
         accuracy = {}
         f1 = {}
         avg_loss = {}
@@ -232,7 +222,6 @@ class ComicMischiefDetection:
             f1[head] = f1_score(labels, all_preds[head], 
                                 average='macro')  # use 'macro' or 'weighted' for multi-class
             avg_loss[head] = total_loss[head] / len(dataloader)
-        
         return avg_loss, accuracy, f1
 
     def test(self):

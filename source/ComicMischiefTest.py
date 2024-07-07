@@ -8,7 +8,7 @@ def run(pretrain, strategy):
                                          encoding=feature_encoding, 
                                          hca=hca, strategy=strategy, 
                                          pretrain=pretrain)
-    model_train.training_loop(0, 25, "train_features_lrec_camera.json", 
+    model_train.training_loop(0, 10, "train_features_lrec_camera.json", 
                               "val_features_lrec_camera.json")
     model_train.test()
 

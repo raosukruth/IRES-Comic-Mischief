@@ -14,8 +14,7 @@ class HICCAP(nn.Module):
         for head in heads:
             if head not in C.supported_heads:
                 raise ValueError("Heads should be either {}".format(C.supported_heads))
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        device = "cpu"
+        device = C.device
         if encoding == None:
             encoding = FeatureEncoding()
         if hca == None:
@@ -56,9 +55,10 @@ class HICCAP(nn.Module):
         torch.save(self.hca.state_dict(), "/tmp/modular_hca.pth")
     
     def load(self, fe_file, hca_file):
-        modular_fe = torch.load(fe_file)
+        device = C.device
+        modular_fe = torch.load(fe_file, map_location=device)
         self.feature_encoding.load_state_dict(modular_fe['model_state'], strict=False)
-        modular_hca = torch.load(hca_file)
+        modular_hca = torch.load(hca_file, map_location=device)
         self.hca.load_state_dict(modular_hca['model_state'], strict=False)
 
     def set_eval_mode(self):
@@ -93,8 +93,7 @@ class HICCAP(nn.Module):
         
         return output_text, output_audio, output_image
     
-    def forward_pass(self, sentences, mask, image, image_mask, audio, audio_mask,
-                     reg_model, actual):
+    def forward_pass(self, sentences, mask, image, image_mask, audio, audio_mask, actual):
         output_text, output_audio, output_image = self.forward(sentences, mask, image, 
                                                                image_mask, audio, audio_mask)
         outputs = {}
@@ -102,7 +101,6 @@ class HICCAP(nn.Module):
             output = self.task_heads[head].forward_pass(output_text, 
                                                         output_audio, 
                                                         output_image, 
-                                                        reg_model, 
                                                         actual[head])
             outputs.update(output)
         return outputs
