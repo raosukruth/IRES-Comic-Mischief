@@ -66,15 +66,43 @@ class ComicMischiefDetection:
             "slapstick": [],
             "sarcasm": []
         }
+
+        validation_loss = {
+            "binary": [],
+            "mature": [],
+            "gory": [],
+            "slapstick": [],
+            "sarcasm": []
+        }
+
+        validation_accuracy = {
+            "binary": [],
+            "mature": [],
+            "gory": [],
+            "slapstick": [],
+            "sarcasm": []
+        }
+
+        validation_f1 = {
+            "binary": [],
+            "mature": [],
+            "gory": [],
+            "slapstick": [],
+            "sarcasm": []
+        }
         for _ in range(start_epoch, max_epochs):
             self.train(train_set, validation_set, optimizer, strategy, loss_history)
             avg_loss, accuracy, f1 = self.evaluate(validation_set)
             for head in avg_loss:
                 print("Validation {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
                     head, avg_loss[head], accuracy[head], f1[head]))
-            Utils.save_dict("{}_validation_avg_loss.pkl".format(self.strategy), avg_loss)
-            Utils.save_dict("{}_validation_accuracy.pkl".format(self.strategy), accuracy)
-            Utils.save_dict("{}_validation_f1.pkl".format(self.strategy), f1)
+                validation_loss[head].append(avg_loss[head])
+                validation_accuracy[head].append(accuracy[head])
+                validation_f1[head].append(f1[head])
+
+        Utils.save_dict("{}_validation_avg_loss.pkl".format(self.strategy), validation_loss)
+        Utils.save_dict("{}_validation_accuracy.pkl".format(self.strategy), validation_accuracy)
+        Utils.save_dict("{}_validation_f1.pkl".format(self.strategy), validation_f1)
 
         Utils.save_dict("{}_train_loss_history.pkl".format(self.strategy), loss_history)
  
@@ -229,6 +257,6 @@ class ComicMischiefDetection:
         for head in avg_loss:
             print("Test {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
                 head, avg_loss[head], accuracy[head], f1[head]))
-        Utils.save_dict("{}_train_avg_loss.pkl".format(self.strategy), avg_loss)
-        Utils.save_dict("{}_train_accuracy.pkl".format(self.strategy), accuracy)
-        Utils.save_dict("{}_train_f1.pkl".format(self.strategy), f1)
+        Utils.save_dict("{}_test_avg_loss.pkl".format(self.strategy), avg_loss)
+        Utils.save_dict("{}_test_accuracy.pkl".format(self.strategy), accuracy)
+        Utils.save_dict("{}_test_f1.pkl".format(self.strategy), f1) 
