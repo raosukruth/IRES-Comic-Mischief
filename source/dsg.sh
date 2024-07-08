@@ -1,7 +1,7 @@
 #!/bin/bash 
 
-cd /mnt/scratch/raosukru/IRES/IRES-Comic-Mischief
+cd /home/srao22
 source bin/activate
-cd /mnt/scratch/raosukru/IRES/IRES-Comic-Mischief/source
+cd /home/srao22/project/IRES-Comic-Mischief-Copy/IRES-Comic-Mischief/source
 
-python ComicMischiefTest.py dsg pretrain > dsg_7_6_24.out 2>&1
+nohup python -u ComicMischiefTest.py dsg pretrain > dsg_7_6_24.out 2>&1 &
