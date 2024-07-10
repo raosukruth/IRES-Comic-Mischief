@@ -8,7 +8,7 @@ path_to_I3D_features = path_to_VGGish_I3D + "i3d_vecs_extended_merged/"
 
 supported_heads = ['binary', 'mature', 'gory', 'slapstick', 'sarcasm']
 
-use_gpu = False
+use_gpu = True
 if use_gpu:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if torch.cuda.is_available():
@@ -25,4 +25,4 @@ else:
 assert(device)
 
 show_training_loss = True
-batch_size = 24
+batch_size = 8

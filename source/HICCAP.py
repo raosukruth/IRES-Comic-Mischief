@@ -115,3 +115,9 @@ class HICCAP(nn.Module):
             output = self.task_heads[head].eval_pass(output_text, output_audio, output_image)
             outputs.update(output)
         return outputs
+    
+    def check_mode(self, is_training):
+        assert(self.feature_encoding.training == is_training)
+        assert(self.hca.training == is_training)
+        for head in self.task_heads.values():
+            assert(head.training == is_training)
