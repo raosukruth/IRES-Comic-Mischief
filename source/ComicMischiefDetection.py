@@ -14,13 +14,24 @@ from torch.utils.data import DataLoader
 from CustomDataset import CustomDataset
 import Utils
 import FineTuning as FT
+import random
 
 def create_encoding_hca():
     return FeatureEncoding(), HCA()
 
+def set_seed(seed):
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 class ComicMischiefDetection:
     def __init__(self, heads=None, encoding=None, hca=None, strategy="naive", 
                  pretrain=False, ce=False):
+        set_seed(0xDEADFACE)
         if strategy == None:
             strategy = "naive"
         self.strategy = strategy
@@ -34,7 +45,7 @@ class ComicMischiefDetection:
             self.model.load("./fe.pth", "./hca.pth")
         self.heads = heads
         self.ce = ce
-
+    
     def set_training_mode(self):
         self.model.set_training_mode()
 
@@ -44,14 +55,20 @@ class ComicMischiefDetection:
     def training_loop(self, start_epoch, max_epochs, 
                       train_set, validation_set, 
                       optimizer_type="adam"):
-        learning_rate = 1.9e-5
+        learning_rate = 1.5e-5
 
         params = self.model.get_model_params()
         if optimizer_type == 'adam':
-            optimizer = optim.Adam(params, lr=learning_rate, weight_decay=0.01)
+            optimizer = optim.Adam(params, lr=learning_rate, weight_decay=0.02)
         elif optimizer_type == 'sgd':
-            optimizer = optim.SGD(params, lr=learning_rate, weight_decay=0.01)
+            optimizer = optim.SGD(params, lr=learning_rate, weight_decay=0.02)
         
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 
+                                                            mode='max', 
+                                                            factor=0.5, 
+                                                            patience=2, 
+                                                            min_lr=1e-8, 
+                                                            verbose=True)
         strategy = None
         if self.strategy == "naive":
             strategy = FT.Naive(self.heads, self.ce)
@@ -98,13 +115,17 @@ class ComicMischiefDetection:
         for _ in range(start_epoch, max_epochs):
             self.train(train_set, validation_set, optimizer, strategy, loss_history)
             avg_loss, accuracy, f1 = self.evaluate(validation_set)
+            average_f1 = 0.0
             for head in avg_loss:
                 print("Validation {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
                     head, avg_loss[head], accuracy[head], f1[head]))
                 validation_loss[head].append(avg_loss[head])
                 validation_accuracy[head].append(accuracy[head])
                 validation_f1[head].append(f1[head])
-
+                average_f1 += f1[head]
+            average_f1 /= len(f1)
+            lr_scheduler.step(average_f1)
+                
         Utils.save_dict("{}_validation_avg_loss.pkl".format(self.strategy), validation_loss)
         Utils.save_dict("{}_validation_accuracy.pkl".format(self.strategy), validation_accuracy)
         Utils.save_dict("{}_validation_f1.pkl".format(self.strategy), validation_f1)
@@ -241,13 +262,19 @@ class ComicMischiefDetection:
                             total_loss[head] = 0
                         total_loss[head] += loss.item()
 
-                        # Collect predictions and true labels
-                        preds = (out[:, 1] > 0.5).cpu().numpy()  # Using the second column for binary classification
-                        true_labels = (pred[:, 1] > 0.5).cpu().numpy()  # Using the second column for binary classification
-                    
+                        # Convert one-hot encoded labels to class indices
+                        true_labels = torch.argmax(pred, dim=1)
+
+                        # Convert softmax outputs to predicted class indices
+                        pred_labels = torch.argmax(out, dim=1)
+
+                        # Move tensors to CPU if necessary
+                        true_labels = true_labels.cpu().numpy()
+                        pred_labels = pred_labels.cpu().numpy()
+
                         if head not in all_preds:
                             all_preds[head] = []
-                        all_preds[head].extend(preds)
+                        all_preds[head].extend(pred_labels)
                         if head not in all_labels:
                             all_labels[head] = []
                         all_labels[head].extend(true_labels)
@@ -259,7 +286,7 @@ class ComicMischiefDetection:
             accuracy[head] = accuracy_score(labels, all_preds[head])
             f1[head] = f1_score(labels, all_preds[head], 
                                 average='macro')  # use 'macro' or 'weighted' for multi-class
-            avg_loss[head] = total_loss[    head] / len(dataloader)
+            avg_loss[head] = total_loss[head] / len(dataloader)
         return avg_loss, accuracy, f1
 
     def test(self):
