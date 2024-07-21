@@ -60,6 +60,7 @@ class HICCAP(nn.Module):
         self.feature_encoding.load_state_dict(modular_fe['model_state'], strict=False)
         modular_hca = torch.load(hca_file, map_location=device)
         self.hca.load_state_dict(modular_hca['model_state'], strict=False)
+        print(f"Successfully loaded {fe_file}, {hca_file}")
 
     def set_eval_mode(self):
         self.feature_encoding.eval()

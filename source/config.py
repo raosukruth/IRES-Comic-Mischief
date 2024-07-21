@@ -15,7 +15,7 @@ if use_gpu:
         # The following works only on joshi
         # For other systems set it to 0 or find the number of GPUs
         # and decide (Run Cuda.py for help)
-        device_id = 5
+        device_id = 3
         torch.cuda.set_device(device_id)
         device = torch.device("cuda") 
     else:
@@ -26,3 +26,7 @@ assert(device)
 
 show_training_loss = True
 batch_size = 8
+
+text_pad_length = 500
+img_pad_length = 36
+audio_pad_length = 63

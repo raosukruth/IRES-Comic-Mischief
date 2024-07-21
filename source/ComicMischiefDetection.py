@@ -15,6 +15,7 @@ from CustomDataset import CustomDataset
 import Utils
 import FineTuning as FT
 import random
+from transformers import get_linear_schedule_with_warmup
 
 def create_encoding_hca():
     return FeatureEncoding(), HCA()
@@ -29,11 +30,11 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 class ComicMischiefDetection:
-    def __init__(self, heads=None, encoding=None, hca=None, strategy="naive", 
-                 pretrain=False, ce=False):
+    def __init__(self, heads=None, encoding=None, hca=None, strategy="discrete", 
+                 pretrain=False):
         set_seed(0xDEADFACE)
         if strategy == None:
-            strategy = "naive"
+            strategy = "discrete"
         self.strategy = strategy
         if heads == None:
             raise ValueError("Heads should be either {}".format(C.supported_heads))     
@@ -44,18 +45,21 @@ class ComicMischiefDetection:
         if pretrain:
             self.model.load("./fe.pth", "./hca.pth")
         self.heads = heads
-        self.ce = ce
-    
+
     def set_training_mode(self):
         self.model.set_training_mode()
 
     def set_eval_mode(self):
         self.model.set_eval_mode()  
-
+    
     def training_loop(self, start_epoch, max_epochs, 
                       train_set, validation_set, 
-                      optimizer_type="adam"):
-        learning_rate = 1.5e-5
+                      optimizer_type="adam",
+                      batch_size=C.batch_size,
+                      shuffle=True,
+                      text_pad_length=500, 
+                      img_pad_length=36, audio_pad_length=63,
+                      learning_rate = 1.5e-5):
 
         params = self.model.get_model_params()
         if optimizer_type == 'adam':
@@ -70,15 +74,25 @@ class ComicMischiefDetection:
                                                             min_lr=1e-8, 
                                                             verbose=True)
         strategy = None
-        if self.strategy == "naive":
-            strategy = FT.Naive(self.heads, self.ce)
+        if self.strategy == "discrete":
+            strategy = FT.Discrete(self.heads)
         elif self.strategy == "weighted":
-            strategy = FT.Weighted(self.heads, self.ce)
+            strategy = FT.Weighted(self.heads)
         elif self.strategy == "dsg":
-            strategy = FT.DynamicStopAndGo(self.heads, self.ce)
+            strategy = FT.DynamicStopAndGo(self.heads)
+        elif self.strategy == "roundrobin":
+            strategy = FT.RoundRobin(self.heads)
+        elif self.strategy == "dw":
+            strategy = FT.DynamicWeighted(self.heads)
+        elif self.strategy == "dcl":
+            strategy = FT.DynamicCurriculumLearning(self.heads, anti=False)
+        elif self.strategy == "dacl":
+            strategy = FT.DynamicCurriculumLearning(self.heads, anti=True)
+        elif self.strategy == "aw":
+            strategy = FT.DynamicCurriculumLearning(self.heads)
         else:
-            assert(self.strategy == "roundrobin")
-            strategy = FT.RoundRobin(self.heads, self.ce)
+            assert(self.strategy == "cl")
+            strategy = FT.CurriculumLearning(self.heads)
 
         assert(strategy != None)
         loss_history = {
@@ -112,46 +126,49 @@ class ComicMischiefDetection:
             "slapstick": [],
             "sarcasm": []
         }
+        train_dataset = CustomDataset(train_set, text_pad_length, 
+                                      img_pad_length, audio_pad_length)
+        train_dataloader = DataLoader(train_dataset, 
+                                      batch_size=batch_size, 
+                                      shuffle=shuffle)
+
+        validation_dataset = CustomDataset(validation_set, text_pad_length, 
+                                           img_pad_length, audio_pad_length)
+        validation_dataloader = DataLoader(validation_dataset, 
+                                           batch_size=batch_size, 
+                                           shuffle=shuffle)
         for _ in range(start_epoch, max_epochs):
-            self.train(train_set, validation_set, optimizer, strategy, loss_history)
-            avg_loss, accuracy, f1 = self.evaluate(validation_set)
+            strategy.start_epoch()
+            self.train(train_dataloader, validation_dataloader, optimizer, strategy, loss_history)
+            avg_loss, accuracy, f1score = self.evaluate(validation_dataloader)
+            strategy.process_eval(avg_loss, accuracy, f1score)
             average_f1 = 0.0
             for head in avg_loss:
-                print("Validation {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
-                    head, avg_loss[head], accuracy[head], f1[head]))
+                print("Validation {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1_score = {:.4f}".format(
+                    head, avg_loss[head], accuracy[head], f1score[head]))
                 validation_loss[head].append(avg_loss[head])
                 validation_accuracy[head].append(accuracy[head])
-                validation_f1[head].append(f1[head])
-                average_f1 += f1[head]
-            average_f1 /= len(f1)
+                validation_f1[head].append(f1score[head])
+                average_f1 += f1score[head]
+            average_f1 /= len(f1score)
             lr_scheduler.step(average_f1)
+            strategy.end_epoch()
                 
         Utils.save_dict("{}_validation_avg_loss.pkl".format(self.strategy), validation_loss)
         Utils.save_dict("{}_validation_accuracy.pkl".format(self.strategy), validation_accuracy)
         Utils.save_dict("{}_validation_f1.pkl".format(self.strategy), validation_f1)
-
         Utils.save_dict("{}_train_loss_history.pkl".format(self.strategy), loss_history)
  
-    def train(self, training_set, validation_set, optimizer, strategy, 
-              loss_history,
-              batch_size=C.batch_size,
-              text_pad_length=500, img_pad_length=36, 
-              audio_pad_length=63, shuffle=True, 
-              device=None):
+    def train(self, train_dataloader, validation_dataloader, optimizer, strategy, loss_history, device=None):
         if device == None:
             device = C.device
-        
-        dataset = CustomDataset(training_set, text_pad_length, 
-                                img_pad_length, audio_pad_length)
-        dataloader = DataLoader(dataset, 
-                                batch_size=batch_size, 
-                                shuffle=shuffle)
+
         self.set_training_mode()
 
         self.model.check_mode(True)
         
-        eval_batch_count = strategy.get_eval_iter_count()
-        for batch_idx, batch in enumerate(dataloader):
+        eval_batch_count = strategy.get_batch_eval_iter_count()
+        for batch_idx, batch in enumerate(train_dataloader):
             strategy.start_iter()
             batch_text = batch['text'].to(device)
             batch_text_mask = batch['text_mask'].to(device)
@@ -187,9 +204,9 @@ class ComicMischiefDetection:
                                               actual)
             Utils.update_loss_history(loss_history, outputs)
             optimizer.zero_grad()
+            
             strategy.backward(outputs)
             optimizer.step()
-
             if C.show_training_loss:
                 for head, loss in outputs.items():
                     print("Training Batch: {}, Head: {}, Loss: {}".format(
@@ -197,24 +214,17 @@ class ComicMischiefDetection:
                 print("\n")
 
             if (batch_idx + 1) % eval_batch_count == 0:
-                loss, accuracy, _ = self.evaluate(validation_set, is_training=True)
-                strategy.process_eval(loss, accuracy)
+                loss, accuracy, f1 = self.evaluate(validation_dataloader, is_training=True)
+                strategy.process_batch_eval(loss, accuracy, f1)
             strategy.end_iter()
 
-    def evaluate(self, json_data, is_training=False,
-                 batch_size=C.batch_size, text_pad_length=500, 
-                 img_pad_length=36, audio_pad_length=63,
-                 shuffle=True, device=None):
+    def evaluate(self, dataloader, is_training=False, device=None):
         if not is_training:
             self.set_eval_mode()
         if device == None:
             device = C.device
         
         self.model.check_mode(is_training)
-
-        dataset = CustomDataset(json_data, text_pad_length, 
-                                img_pad_length, audio_pad_length)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
         total_loss = {} 
         all_preds = {}
@@ -289,8 +299,13 @@ class ComicMischiefDetection:
             avg_loss[head] = total_loss[head] / len(dataloader)
         return avg_loss, accuracy, f1
 
-    def test(self):
-        avg_loss, accuracy, f1 = self.evaluate("test_features_lrec_camera.json")
+    def test(self, test_set):
+        test_dataset = CustomDataset(test_set, C.text_pad_length, 
+                                     C.img_pad_length, C.audio_pad_length)
+        test_dataloader = DataLoader(test_dataset, 
+                                     batch_size=C.batch_size, 
+                                     shuffle=True)
+        avg_loss, accuracy, f1 = self.evaluate(test_dataloader)
         for head in avg_loss:
             print("Test {}: avg_loss = {:.4f}; accuracy = {:.4f}; f1 = {:.4f}".format(
                 head, avg_loss[head], accuracy[head], f1[head]))

@@ -7,6 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 import json
 from Utils import pad_segment, mask_vector, pad_features
 import config as C
+from math import ceil
 
 class CustomDataset(Dataset):
     def __init__(self, json_data, text_pad_length=500, img_pad_length=36, audio_pad_length=63):
@@ -26,17 +27,17 @@ class CustomDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
+    
+    def num_batches(self, batch_size):
+        dataset_size = len(self.data)
+        return ceil(dataset_size / batch_size)
 
     def __getitem__(self, idx):
         # here we process all the data accordingly
         key = self.keys[idx] # this is the name of the file
         item = self.data[key]
-        
-        # FIX THIS
-        # NOTE THAT ORIGINAL CODE DOES ERROR HANDLING HERE
-        image_path = C.path_to_I3D_features
 
-        # ERROR HANDLING BELOW NEEDS UNIFYING
+        image_path = C.path_to_I3D_features
 
         # Load image features
         image_path_rgb = os.path.join(image_path, f"{key}_rgb.npy")
@@ -50,7 +51,7 @@ class CustomDataset(Dataset):
             masked_img = mask_vector(self.img_pad_length, image_vec)
             image_vec = pad_segment(image_vec, self.img_pad_length, 0)
         else:
-            # print("Image not found")
+            print(f"Image {image_path_rgb}, {image_path_flow}  not found")
             image_vec = torch.zeros((self.img_pad_length, 1024)) 
             masked_img = torch.zeros(self.img_pad_length)
 
@@ -60,7 +61,7 @@ class CustomDataset(Dataset):
             audio_vec = np.load(audio_path)
             audio_vec = torch.tensor(audio_vec)
         except FileNotFoundError:
-            # print("Audio Not Found")
+            print(f"Audio {audio_path} Not Found")
             audio_vec = torch.zeros((1, 128))
         masked_audio = mask_vector(self.audio_pad_length, audio_vec)
         audio_vec = pad_segment(audio_vec, self.audio_pad_length, 0)
@@ -88,5 +89,5 @@ class CustomDataset(Dataset):
             "mature": mature.float(),
             "gory": gory.float(),
             "sarcasm": sarcasm.float(),
-            "slapstick": slapstick.float()
+            "slapstick": slapstick.float(),
         }
